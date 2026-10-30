@@ -154,8 +154,8 @@ func validateStaticCELCost(tb testing.TB, s *structuralschema.Structural, fldPat
 		itemCardinality := cardinality
 		if s.ValueValidation != nil && s.ValueValidation.MaxItems != nil && *s.ValueValidation.MaxItems > 0 {
 			itemCardinality *= uint64(*s.ValueValidation.MaxItems)
-		} else if hasXValidations(s.Items) {
-			tb.Errorf("%s: list schema with nested XValidations must set positive maxItems to bound static CEL cost", fldPath)
+		} else if len(s.XValidations) > 0 || hasXValidations(s.Items) {
+			tb.Errorf("%s: list schema with XValidations must set positive maxItems to bound static CEL cost", fldPath)
 			itemCardinality *= staticEstimatedCostLimit
 		}
 		validateStaticCELCost(tb, s.Items, fldPath.Child("items"), false, itemCardinality, totalCost)
@@ -917,6 +917,49 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantClusterValid: true,
 			wantGlobalValid:  true,
 		},
+		{
+			name: "null optional fields pruned and omitted or null interval defaulted to 1m",
+			spec: map[string]any{
+				"groups": []any{
+					map[string]any{
+						"name": "omitted-interval-group",
+						"rules": []any{
+							map[string]any{
+								"record":      "valid_metric",
+								"alert":       nil,
+								"expr":        "vector(1)",
+								"for":         nil,
+								"labels":      nil,
+								"annotations": nil,
+							},
+						},
+					},
+					map[string]any{
+						"name":     "null-interval-group",
+						"interval": nil,
+						"rules": []any{
+							map[string]any{
+								"record": nil,
+								"alert":  "HighErrorRate",
+								"expr":   "up == 0",
+								"for":    nil,
+								"labels": map[string]any{
+									"__name__": nil,
+									"severity": "page",
+								},
+								"annotations": map[string]any{
+									"summary":     nil,
+									"description": "ok",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantRulesValid:   true,
+			wantClusterValid: true,
+			wantGlobalValid:  true,
+		},
 	}
 
 	for _, tc := range cases {
@@ -946,6 +989,19 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 				}
 				defaulting.PruneNonNullableNullsWithoutDefaults(validationPayload, structural)
 				defaulting.Default(validationPayload, structural)
+				if wantValid {
+					if specMap, ok := validationPayload["spec"].(map[string]any); ok {
+						if groups, ok := specMap["groups"].([]any); ok {
+							for i, g := range groups {
+								if gMap, ok := g.(map[string]any); ok {
+									if interval, _ := gMap["interval"].(string); interval == "" {
+										t.Errorf("%s spec.groups[%d].interval was not defaulted", kind, i)
+									}
+								}
+							}
+						}
+					}
+				}
 
 				openapiRes := openapiVal.Validate(validationPayload)
 				celErrs, _ := celVal.Validate(t.Context(), nil, structural, validationPayload, nil, celconfig.RuntimeCELCostBudget)
@@ -972,7 +1028,11 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 				}
 
 				if !tc.skipWebhookParity {
-					webhookErr := runWebhook(data)
+					defaultedData, err := json.Marshal(validationPayload)
+					if err != nil {
+						t.Fatalf("marshal defaulted %s: %v", kind, err)
+					}
+					webhookErr := runWebhook(defaultedData)
 					webhookValid := webhookErr == nil
 					if webhookValid != wantValid {
 						t.Errorf("%s webhook validation got valid=%v, want %v (err=%v)", kind, webhookValid, wantValid, webhookErr)
@@ -1112,12 +1172,6 @@ func runRulesDifferentialFuzz(
 			t.Skip()
 		}
 
-		webhookErr := validateWebhook(data)
-		if errors.Is(webhookErr, errSkipUnmarshal) {
-			t.Skip()
-		}
-		webhookPassed := webhookErr == nil
-
 		var unstructuredObj map[string]any
 		if err := json.Unmarshal(data, &unstructuredObj); err != nil {
 			t.Skip()
@@ -1129,6 +1183,16 @@ func runRulesDifferentialFuzz(
 		delete(unstructuredObj, "status")
 		defaulting.PruneNonNullableNullsWithoutDefaults(unstructuredObj, structural)
 		defaulting.Default(unstructuredObj, structural)
+
+		defaultedData, err := json.Marshal(unstructuredObj)
+		if err != nil {
+			t.Fatalf("marshal defaulted %s: %v", kind, err)
+		}
+		webhookErr := validateWebhook(defaultedData)
+		if errors.Is(webhookErr, errSkipUnmarshal) {
+			t.Skip()
+		}
+		webhookPassed := webhookErr == nil
 
 		openapiResult := openapiValidator.Validate(unstructuredObj)
 		celErrors, _ := celValidator.Validate(t.Context(), nil, structural, unstructuredObj, nil, celconfig.RuntimeCELCostBudget)
@@ -1159,8 +1223,8 @@ var errSkipUnmarshal = errors.New("skip unmarshal")
 //   - Missing or empty "rules" in a RuleGroup (OpenAPIv3 enforces required + minItems: 1, while rulefmt allows 0 rules).
 //   - Explicit "" on omitempty string/duration fields ("record": "", "alert": "", "interval": "", or "for": ""),
 //     which OpenAPIv3 rejects via minLength: 1 while Go json.Unmarshal cannot distinguish "" from an omitted field.
-//   - Prometheus year duration unit ("y") on "interval" or "for", which OpenAPIv3 format: duration rejects
-//     (matching upstream Prometheus v3's removal of "y" from model.ParseDuration) while the v2.53.5 Go pin still parses it.
+//   - Prometheus year duration unit ("y") on "interval" or "for", which kube-openapi format: duration rejects
+//     because it only supports units up to "w", whereas Prometheus model.ParseDuration still parses it.
 //   - Upper-bound limits (maxItems / maxProperties) required for Kubernetes CEL static cost estimation.
 //   - TypeMeta/ObjectMeta schema checks on "apiVersion", "kind", or "metadata" not checked by ValidateCreate().
 func isIntentionalOpenAPISchemaTightening(openapiErrs []error, celErrs field.ErrorList) bool {
