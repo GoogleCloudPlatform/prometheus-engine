@@ -1,65 +1,67 @@
-# Operator
+# Operator Package (`pkg/operator`)
 
-See the [binary documentation](../../cmd/operator/README.md) for deployment instructions.
+This package implements the reconciliation loops, admission webhooks, and Custom Resource Definition (CRD) types (`monitoring.googleapis.com/v1`) used by [`cmd/operator`](../../cmd/operator/README.md).
 
-## Testing
+## Package Architecture
 
-The operator has an end-to-end test suite to run functional tests against a real
-Kubernetes cluster.
+`Operator.Run()` in [`operator.go`](operator.go) registers four controllers with `controller-runtime`:
 
-To run the tests a kubeconfig pointing to a GKE cluster is required. This is generally
-already taken care of while setting up a GKE cluster
-([instructions](https://cloud.google.com/kubernetes-engine/docs/how-to/creating-a-zonal-cluster)).
-Use `kubectl config {current,set}-context` to verify or change which cluster the tests will
-execute against.
-
-The test expects various resources, which are part of deploying the operator, to be installed
-in the cluster:
-
-```bash
-kubectl apply -f ../../cmd/operator/deploy/crds/
-kubectl apply -f ../../cmd/operator/deploy/operator/00-namespace.yaml
-kubectl apply -f ../../cmd/operator/deploy/operator/01-priority-class.yaml
-```
-
-The operator itself is run locally within the test suite. Thus, make sure the blocking
-webhooks are not currently enabled:
-
-```bash
-kubectl delete -f ../../cmd/operator/deploy/operator/08-validatingwebhookconfiguration.yaml
-kubectl delete -f ../../cmd/operator/deploy/operator/09-mutatingwebhookconfiguration.yaml
-```
-
-The tests verify the metric data written into GCM, for which information about the
-GKE cluster must be provided. Execute the tests with:
-
-```bash
-go test ./e2e/ \
-    --project-id=$PROJECT_ID --cluster=$CLUSTER_NAME --location=$LOCATION
-```
-
-### Credentials
-
-Tests by default assume to run in a GKE cluster and that they can infer sufficient
-credentials from the environment.
-
-If that's not the case the `--skip-gcm` flag disables tests paths that require
-connectivity to the GMP and GCM backends.
-
-Alternatively, the `--gcp-service-account=<filepath>` flag allows providing a
-GCP service account credentials file which is used for deployed components instead
-of relying on the environment. The service account needs permission to read and write
-metric data against the `--project-id`.
-Running the test on GKE with and without this option provides more comprehensive
-coverage.
+| Controller Name    | Source Files                                                                                       | Watched Primary Resources                                                           | Managed Outputs                                                                                                                                                                                   |
+|:-------------------|:---------------------------------------------------------------------------------------------------|:------------------------------------------------------------------------------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `operator-config`  | [`operator_config.go`](operator_config.go)                                                         | `OperatorConfig` (`gmp-public/config`)                                              | Reconciles the `collector` DaemonSet and `rule-evaluator` Deployment in `gmp-system`, and mirrors referenced Secrets (`collection`, `rules`, `alertmanager`) from `gmp-public` into `gmp-system`. |
+| `collector-config` | [`collection.go`](collection.go), [`splitting.go`](splitting.go)                                   | `PodMonitoring`, `ClusterPodMonitoring`, `ClusterNodeMonitoring`, `OperatorConfig`  | Validates scrape endpoints, generates gzipped Prometheus configuration in `Secret/gmp-system/collection`, and updates CRD status conditions.                                                      |
+| `rules`            | [`rules.go`](rules.go), [`apis/monitoring/v1/rules_config.go`](apis/monitoring/v1/rules_config.go) | `Rules`, `ClusterRules`, `GlobalRules`                                              | Injects scope labels (`project_id`, `location`, `cluster`, `namespace`) into PromQL expressions and writes generated rule files to `ConfigMap/gmp-system/rules-generated`.                        |
+| `target-status`    | [`endpoint_status.go`](endpoint_status.go)                                                         | `PodMonitoring`, `ClusterPodMonitoring`, `ClusterNodeMonitoring` + `collector` Pods | Polls `/api/v1/targets` on ready collector pods and populates `status.endpointStatuses` on the corresponding monitoring CRDs.                                                                     |
 
 ## Code Generation
 
-To update generated code when changes to Custom Resource Definitions are made run:
+> [!IMPORTANT]
+> Never manually edit generated files under `charts/operator/crds/`, `manifests/`, `doc/api.md`, `pkg/operator/generated/`, or `pkg/operator/apis/monitoring/v1/zz_generated.deepcopy.go`. CI enforces a clean working tree via `CHECK=1 make regen`.
+
+When modifying Go API types under [`pkg/operator/apis/monitoring/v1/`](apis/monitoring/v1/), run the following two steps from the repository root:
+
+1. **Regenerate CRD YAMLs, Helm manifests, API documentation, and formatting**:
 
 ```bash
 make regen
 ```
 
-The generated CRD YAMLs may require manual editing. Especially consider whether fields
-are correctly marked as required or not.
+This executes [`./hack/presubmit.sh`](../../hack/presubmit.sh) (`crdgen`, `manifests`, `docgen`, and `format`), updating `charts/operator/crds/*.yaml`, `manifests/setup.yaml`, `manifests/operator.yaml`, `manifests/rule-evaluator.yaml`, and `doc/api.md`.
+
+2. **Regenerate Go `DeepCopy` methods and typed client-go code (when structs or fields change)**:
+
+```bash
+./hack/presubmit.sh codegen
+```
+
+This runs `kube::codegen::gen_helpers` to update `pkg/operator/apis/monitoring/v1/zz_generated.deepcopy.go` and `pkg/operator/generated/`.
+
+## Testing
+
+### Unit Tests
+
+Run unit tests for the operator package natively from the repository root:
+
+```bash
+go test ./pkg/operator/...
+```
+
+### End-to-End Tests (`e2e/`)
+
+To run the full end-to-end suite in isolated `kind` clusters (from the repository root):
+
+```bash
+make e2e
+# Or run a single test without rebuilding images:
+TEST_RUN=TestCollectorPodMonitoring make e2e-only
+```
+
+To run the `e2e/` suite directly against an existing Kubernetes cluster (such as GKE) where `manifests/setup.yaml` has been applied and in-cluster validating webhooks are not blocking local operator execution:
+
+```bash
+kubectl apply -f manifests/setup.yaml
+go test ./e2e/ \
+  -args -project-id="$PROJECT_ID" -cluster="$CLUSTER_NAME" -location="$LOCATION" -skip-gcm
+```
+
+Omit `-skip-gcm` (or pass `-gcp-service-account=<filepath>`) when verifying metric ingestion and querying against Google Cloud Monitoring.
