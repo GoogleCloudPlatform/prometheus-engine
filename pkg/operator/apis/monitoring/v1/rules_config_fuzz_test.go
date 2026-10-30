@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// TODO(bernot): Remove the webhook parity checks and differential fuzzers in this file when the *Rules webhooks are removed.
-
 package v1
 
 import (
@@ -1045,7 +1043,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 				if err := json.Unmarshal(b, &r, json.RejectUnknownMembers(true)); err != nil {
 					return err
 				}
-				_, err := r.ValidateCreate()
+				_, err := r.RuleGroupsConfig("", "", "")
 				return err
 			})
 			checkKind("ClusterRules", clusterRulesOpenAPI, clusterRulesStructural, clusterRulesCEL, tc.wantClusterValid, func(b []byte) error {
@@ -1053,7 +1051,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 				if err := json.Unmarshal(b, &r, json.RejectUnknownMembers(true)); err != nil {
 					return err
 				}
-				_, err := r.ValidateCreate()
+				_, err := r.RuleGroupsConfig("", "", "")
 				return err
 			})
 			checkKind("GlobalRules", globalRulesOpenAPI, globalRulesStructural, globalRulesCEL, tc.wantGlobalValid, func(b []byte) error {
@@ -1061,7 +1059,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 				if err := json.Unmarshal(b, &r, json.RejectUnknownMembers(true)); err != nil {
 					return err
 				}
-				_, err := r.ValidateCreate()
+				_, err := r.RuleGroupsConfig()
 				return err
 			})
 		})
@@ -1179,7 +1177,7 @@ func runRulesDifferentialFuzz(
 		if unstructuredObj == nil {
 			t.Skip()
 		}
-		// Status is a separate subresource and is not validated by ValidateCreate().
+		// Status is a separate subresource and is not validated by RuleGroupsConfig().
 		delete(unstructuredObj, "status")
 		defaulting.PruneNonNullableNullsWithoutDefaults(unstructuredObj, structural)
 		defaulting.Default(unstructuredObj, structural)
@@ -1203,13 +1201,13 @@ func runRulesDifferentialFuzz(
 				if isIntentionalOpenAPISchemaTightening(openapiResult.Errors, celErrors) {
 					t.Skip("Narrowly skipping: intentional OpenAPIv3 schema tightening over Go struct unmarshaling")
 				}
-				t.Fatalf("Discrepancy (False Positive): CRD validation rejected %s, but Webhook accepted it.\nOpenAPI Errors: %v\nCEL Errors: %v\nPayload: %s", kind, openapiResult.Errors, celErrors, string(data))
+				t.Fatalf("Discrepancy (False Positive): CRD validation rejected %s, but RuleGroupsConfig accepted it.\nOpenAPI Errors: %v\nCEL Errors: %v\nPayload: %s", kind, openapiResult.Errors, celErrors, string(data))
 			}
 			if crdPassed && !webhookPassed {
 				if isIntentionalPostAdmissionRulesError(webhookErr) {
 					t.Skip("Narrowly skipping: intentional post-admission operator validation check")
 				}
-				t.Fatalf("Discrepancy (False Negative): CRD validation accepted %s, but Webhook rejected it.\nWebhook Error: %v\nPayload: %s", kind, webhookErr, string(data))
+				t.Fatalf("Discrepancy (False Negative): CRD validation accepted %s, but RuleGroupsConfig rejected it.\nError: %v\nPayload: %s", kind, webhookErr, string(data))
 			}
 		}
 	})
@@ -1218,7 +1216,7 @@ func runRulesDifferentialFuzz(
 var errSkipUnmarshal = errors.New("skip unmarshal")
 
 // isIntentionalOpenAPISchemaTightening returns true when CRD OpenAPIv3 validation rejects a raw JSON
-// payload that Go struct json.Unmarshal + ValidateCreate() accepts due to intentional schema constraints:
+// payload that Go struct json.Unmarshal + RuleGroupsConfig() accepts due to intentional schema constraints:
 //   - Missing required envelope fields ("spec", "spec.groups") or null "spec.groups" (which unmarshal as nil in Go).
 //   - Missing or empty "rules" in a RuleGroup (OpenAPIv3 enforces required + minItems: 1, while rulefmt allows 0 rules).
 //   - Explicit "" on omitempty string/duration fields ("record": "", "alert": "", "interval": "", or "for": ""),
@@ -1226,7 +1224,7 @@ var errSkipUnmarshal = errors.New("skip unmarshal")
 //   - Prometheus year duration unit ("y") on "interval" or "for", which kube-openapi format: duration rejects
 //     because it only supports units up to "w", whereas Prometheus model.ParseDuration still parses it.
 //   - Upper-bound limits (maxItems / maxProperties) required for Kubernetes CEL static cost estimation.
-//   - TypeMeta/ObjectMeta schema checks on "apiVersion", "kind", or "metadata" not checked by ValidateCreate().
+//   - TypeMeta/ObjectMeta schema checks on "apiVersion", "kind", or "metadata" not checked by RuleGroupsConfig().
 func isIntentionalOpenAPISchemaTightening(openapiErrs []error, celErrs field.ErrorList) bool {
 	if len(openapiErrs) == 0 {
 		return false
@@ -1295,46 +1293,46 @@ func isIntentionalPostAdmissionRulesError(err error) bool {
 }
 
 // FuzzRules runs differential fuzzing between the OpenAPIv3/CEL validations in the Rules CRD
-// and the Go-based validation in Rules.ValidateCreate().
+// and the Go-based validation in Rules.RuleGroupsConfig().
 func FuzzRules(f *testing.F) {
 	runRulesDifferentialFuzz(f, "rules.monitoring.googleapis.com", "Rules", func(data []byte) error {
 		var r Rules
 		if err := json.Unmarshal(data, &r, json.RejectUnknownMembers(true)); err != nil {
 			return errSkipUnmarshal
 		}
-		_, err := r.ValidateCreate()
+		_, err := r.RuleGroupsConfig("", "", "")
 		return err
 	})
 }
 
 // FuzzClusterRules runs differential fuzzing between the OpenAPIv3/CEL validations in the ClusterRules CRD
-// and the Go-based validation in ClusterRules.ValidateCreate().
+// and the Go-based validation in ClusterRules.RuleGroupsConfig().
 func FuzzClusterRules(f *testing.F) {
 	runRulesDifferentialFuzz(f, "clusterrules.monitoring.googleapis.com", "ClusterRules", func(data []byte) error {
 		var r ClusterRules
 		if err := json.Unmarshal(data, &r, json.RejectUnknownMembers(true)); err != nil {
 			return errSkipUnmarshal
 		}
-		_, err := r.ValidateCreate()
+		_, err := r.RuleGroupsConfig("", "", "")
 		return err
 	})
 }
 
 // FuzzGlobalRules runs differential fuzzing between the OpenAPIv3/CEL validations in the GlobalRules CRD
-// and the Go-based validation in GlobalRules.ValidateCreate().
+// and the Go-based validation in GlobalRules.RuleGroupsConfig().
 func FuzzGlobalRules(f *testing.F) {
 	runRulesDifferentialFuzz(f, "globalrules.monitoring.googleapis.com", "GlobalRules", func(data []byte) error {
 		var r GlobalRules
 		if err := json.Unmarshal(data, &r, json.RejectUnknownMembers(true)); err != nil {
 			return errSkipUnmarshal
 		}
-		_, err := r.ValidateCreate()
+		_, err := r.RuleGroupsConfig()
 		return err
 	})
 }
 
 // FuzzRulesStructured mutates RuleGroup and Rule fields directly rather than raw JSON bytes,
-// exercising OpenAPIv3 and CEL validation rules against ValidateCreate() at high throughput
+// exercising OpenAPIv3 and CEL validation rules against RuleGroupsConfig() at high throughput
 // across Rules, ClusterRules, and GlobalRules.
 func FuzzRulesStructured(f *testing.F) {
 	rulesOpenAPI, rulesStructural, rulesCEL := compileCRDValidators(f, "rules.monitoring.googleapis.com")
@@ -1427,7 +1425,7 @@ func FuzzRulesStructured(f *testing.F) {
 			if err != nil {
 				t.Skip()
 			}
-			_, webhookErr = obj.ValidateCreate()
+			_, webhookErr = obj.RuleGroupsConfig("", "", "")
 		case 1:
 			kind = "ClusterRules"
 			openapiValidator, structural, celValidator = clusterOpenAPI, clusterStructural, clusterCEL
@@ -1441,7 +1439,7 @@ func FuzzRulesStructured(f *testing.F) {
 			if err != nil {
 				t.Skip()
 			}
-			_, webhookErr = obj.ValidateCreate()
+			_, webhookErr = obj.RuleGroupsConfig("", "", "")
 		default:
 			kind = "GlobalRules"
 			openapiValidator, structural, celValidator = globalOpenAPI, globalStructural, globalCEL
@@ -1455,7 +1453,7 @@ func FuzzRulesStructured(f *testing.F) {
 			if err != nil {
 				t.Skip()
 			}
-			_, webhookErr = obj.ValidateCreate()
+			_, webhookErr = obj.RuleGroupsConfig()
 		}
 
 		var unstructuredObj map[string]any

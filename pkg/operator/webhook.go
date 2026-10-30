@@ -62,18 +62,6 @@ func setupAdmissionWebhooks(ctx context.Context, logger logr.Logger, kubeClient 
 			VPAAvailable: vpaAvailable,
 		}),
 	)
-	webhookServer.Register(
-		validatePath(monitoringv1.RulesResource()),
-		admission.WithValidator(scheme, monitoringv1.NewRulesValidator()),
-	)
-	webhookServer.Register(
-		validatePath(monitoringv1.ClusterRulesResource()),
-		admission.WithValidator(scheme, monitoringv1.NewClusterRulesValidator()),
-	)
-	webhookServer.Register(
-		validatePath(monitoringv1.GlobalRulesResource()),
-		admission.WithValidator(scheme, monitoringv1.NewGlobalRulesValidator()),
-	)
 	// Defaulting webhooks.
 	webhookServer.Register(
 		defaultPath(monitoringv1.OperatorConfigResource()),

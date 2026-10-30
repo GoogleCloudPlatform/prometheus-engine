@@ -39,6 +39,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	eventsv1 "k8s.io/api/events/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -84,6 +85,7 @@ func testRuleEvaluator(t *testing.T, features monitoringv1.OperatorFeatures) {
 	t.Run("rule-evaluator-configuration", testRuleEvaluatorConfiguration(ctx, kubeClient))
 
 	t.Run("rules-create", testCreateRules(ctx, restConfig, kubeClient, operator.DefaultOperatorNamespace, metav1.NamespaceDefault, features))
+	t.Run("rules-invalid-status-events", testInvalidRulesStatusAndEvents(ctx, kubeClient, operator.DefaultOperatorNamespace, metav1.NamespaceDefault))
 	if !skipGCM {
 		t.Run("rules-gcm", testValidateRuleEvaluationMetrics(ctx, restConfig, kubeClient))
 	}
@@ -645,6 +647,216 @@ func testCreateRules(
 		}
 		if line != "" {
 			t.Fatalf("found error in rule-evaluator config-reloader logs: %s", line)
+		}
+	}
+}
+
+func testInvalidRulesStatusAndEvents(
+	ctx context.Context,
+	kubeClient client.Client,
+	systemNamespace,
+	userNamespace string,
+) func(*testing.T) {
+	return func(t *testing.T) {
+		t.Log("creating invalid rules resources and verifying status conditions and warning events")
+
+		invalidRules := &monitoringv1.Rules{
+			Name:      "invalid-rules",
+			Namespace: userNamespace,
+			Spec: monitoringv1.RulesSpec{
+				Groups: []monitoringv1.RuleGroup{
+					{
+						Name: "invalid-group",
+						Rules: []monitoringv1.Rule{
+							{
+								Record: "bad_expr",
+								Expr:   "sum(rate(up[5m])",
+							},
+							{
+								Record: "bad_scope",
+								Expr:   `up{namespace="other-ns"}`,
+							},
+						},
+					},
+				},
+			},
+		}
+		if err := kubeClient.Create(ctx, invalidRules); err != nil {
+			t.Fatalf("expected invalid Rules to pass admission and be validated by operator, got: %v", err)
+		}
+		t.Cleanup(func() {
+			if err := kubeClient.Delete(ctx, invalidRules); err != nil && !apierrors.IsNotFound(err) {
+				t.Errorf("delete invalid Rules: %v", err)
+			}
+		})
+
+		invalidClusterRules := &monitoringv1.ClusterRules{
+			Name: userNamespace + "-invalid-cluster-rules",
+			Spec: monitoringv1.RulesSpec{
+				Groups: []monitoringv1.RuleGroup{
+					{
+						Name: "invalid-cluster-group",
+						Rules: []monitoringv1.Rule{
+							{
+								Record: "bad_cluster_expr",
+								Expr:   "rate(up[5m]",
+							},
+						},
+					},
+				},
+			},
+		}
+		if err := kubeClient.Create(ctx, invalidClusterRules); err != nil {
+			t.Fatalf("expected invalid ClusterRules to pass admission and be validated by operator, got: %v", err)
+		}
+		t.Cleanup(func() {
+			if err := kubeClient.Delete(ctx, invalidClusterRules); err != nil && !apierrors.IsNotFound(err) {
+				t.Errorf("delete invalid ClusterRules: %v", err)
+			}
+		})
+
+		invalidGlobalRules := &monitoringv1.GlobalRules{
+			Name: userNamespace + "-invalid-global-rules",
+			Spec: monitoringv1.RulesSpec{
+				Groups: []monitoringv1.RuleGroup{
+					{
+						Name: "invalid-global-group",
+						Rules: []monitoringv1.Rule{
+							{
+								Record: "bad_global_expr",
+								Expr:   "avg by (",
+							},
+						},
+					},
+				},
+			},
+		}
+		if err := kubeClient.Create(ctx, invalidGlobalRules); err != nil {
+			t.Fatalf("expected invalid GlobalRules to pass admission and be validated by operator, got: %v", err)
+		}
+		t.Cleanup(func() {
+			if err := kubeClient.Delete(ctx, invalidGlobalRules); err != nil && !apierrors.IsNotFound(err) {
+				t.Errorf("delete invalid GlobalRules: %v", err)
+			}
+		})
+
+		checkInvalidStatus := func(conds []monitoringv1.MonitoringCondition, wantSubstrs ...string) bool {
+			if len(conds) != 1 {
+				return false
+			}
+			c := conds[0]
+			if c.Type != monitoringv1.ConfigurationCreateSuccess || c.Status != corev1.ConditionFalse || c.Reason != "RuleConfigError" {
+				return false
+			}
+			for _, sub := range wantSubstrs {
+				if !strings.Contains(c.Message, sub) {
+					return false
+				}
+			}
+			return true
+		}
+
+		err := wait.PollUntilContextTimeout(ctx, pollDuration, 1*time.Minute, true, func(ctx context.Context) (bool, error) {
+			var gotRules monitoringv1.Rules
+			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(invalidRules), &gotRules); err != nil {
+				if apierrors.IsNotFound(err) {
+					return false, nil
+				}
+				return false, fmt.Errorf("get invalid Rules: %w", err)
+			}
+			if !checkInvalidStatus(gotRules.Status.Conditions, "could not parse expression", "conflicting label matcher") {
+				return false, nil
+			}
+
+			var gotClusterRules monitoringv1.ClusterRules
+			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(invalidClusterRules), &gotClusterRules); err != nil {
+				if apierrors.IsNotFound(err) {
+					return false, nil
+				}
+				return false, fmt.Errorf("get invalid ClusterRules: %w", err)
+			}
+			if !checkInvalidStatus(gotClusterRules.Status.Conditions, "could not parse expression") {
+				return false, nil
+			}
+
+			var gotGlobalRules monitoringv1.GlobalRules
+			if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(invalidGlobalRules), &gotGlobalRules); err != nil {
+				if apierrors.IsNotFound(err) {
+					return false, nil
+				}
+				return false, fmt.Errorf("get invalid GlobalRules: %w", err)
+			}
+			if !checkInvalidStatus(gotGlobalRules.Status.Conditions, "could not parse expression") {
+				return false, nil
+			}
+
+			var sysEvents eventsv1.EventList
+			if err := kubeClient.List(ctx, &sysEvents, client.InNamespace(systemNamespace)); err != nil {
+				return false, fmt.Errorf("list system events: %w", err)
+			}
+			hasWorkloadEvent := func(kind, ns, name string) bool {
+				for _, ev := range sysEvents.Items {
+					if ev.Type == corev1.EventTypeWarning &&
+						ev.Reason == "RuleConfigError" &&
+						ev.Action == "Ignored" &&
+						ev.Regarding.Kind == "Deployment" &&
+						ev.Regarding.Name == operator.NameOperator &&
+						ev.Related != nil &&
+						ev.Related.Kind == kind &&
+						ev.Related.Namespace == ns &&
+						ev.Related.Name == name {
+						return true
+					}
+				}
+				return false
+			}
+			if !hasWorkloadEvent("Rules", userNamespace, invalidRules.Name) ||
+				!hasWorkloadEvent("ClusterRules", "", invalidClusterRules.Name) ||
+				!hasWorkloadEvent("GlobalRules", "", invalidGlobalRules.Name) {
+				return false, nil
+			}
+
+			var userEvents eventsv1.EventList
+			if err := kubeClient.List(ctx, &userEvents, client.InNamespace(userNamespace)); err != nil {
+				return false, fmt.Errorf("list user namespace events: %w", err)
+			}
+			hasUserEvent := false
+			for _, ev := range userEvents.Items {
+				if ev.Type == corev1.EventTypeWarning &&
+					ev.Reason == "RuleConfigError" &&
+					ev.Action == "Ignored" &&
+					ev.Regarding.Kind == "Rules" &&
+					ev.Regarding.Namespace == userNamespace &&
+					ev.Regarding.Name == invalidRules.Name {
+					hasUserEvent = true
+					break
+				}
+			}
+			if !hasUserEvent {
+				return false, nil
+			}
+
+			var cm corev1.ConfigMap
+			if err := kubeClient.Get(ctx, client.ObjectKey{Namespace: systemNamespace, Name: "rules-generated"}, &cm); err != nil {
+				return false, fmt.Errorf("get rules-generated ConfigMap: %w", err)
+			}
+			for _, badKey := range []string{
+				fmt.Sprintf("rules__%s__%s.yaml", userNamespace, invalidRules.Name),
+				fmt.Sprintf("clusterrules__%s.yaml", invalidClusterRules.Name),
+				fmt.Sprintf("globalrules__%s.yaml", invalidGlobalRules.Name),
+			} {
+				if _, ok := cm.Data[badKey]; ok {
+					return false, fmt.Errorf("unexpected invalid rule file %q in ConfigMap Data", badKey)
+				}
+				if _, ok := cm.BinaryData[badKey]; ok {
+					return false, fmt.Errorf("unexpected invalid rule file %q in ConfigMap BinaryData", badKey)
+				}
+			}
+
+			return true, nil
+		})
+		if err != nil {
+			t.Fatalf("failed waiting for invalid rules status conditions and events: %v", err)
 		}
 	}
 }
