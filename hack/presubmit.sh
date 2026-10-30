@@ -167,7 +167,7 @@ reformat() {
 
 	echo ">>> formatting bash scripts"
 	# TODO: Fix and apply this to all .sh scripts we host.
-	go tool -modfile="${REPO_ROOT}/tools/go.mod" shfmt -l -w "${REPO_ROOT}/ops/gmpctl/lib.sh" "${REPO_ROOT}/ops/gmpctl.sh" "${REPO_ROOT}/hack/presubmit.sh"
+	go tool -modfile="${REPO_ROOT}/tools/go.mod" shfmt -l -w "${REPO_ROOT}/ops/gmpctl/lib.sh" "${REPO_ROOT}/ops/gmpctl.sh" "${REPO_ROOT}/hack/presubmit.sh" "${REPO_ROOT}/hack/retry.sh"
 }
 
 exit_msg() {

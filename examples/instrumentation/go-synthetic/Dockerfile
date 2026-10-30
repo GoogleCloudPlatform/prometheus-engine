@@ -15,9 +15,21 @@
 FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.27.3@sha256:4d14dcb0974d4d5a608700a6a495e9730813582dadab5ceb4ff4b99d5462f897 AS buildbase
 WORKDIR /app
 COPY go.mod go.sum ./
+COPY hack/retry.sh hack/retry.sh
 # Copy the Go vendor directory only if it exists. Vendor folder will automatically
 # cause 'go build' to use -mod=vendor flag (otherwise -mod=mod is used).
 COPY vendor* vendor
+ENV GOMODCACHE=/gocache/mod
+ENV GOCACHE=/gocache/build
+# Pre-download Go modules with retries, before the sources are copied so this
+# layer is keyed on go.mod/go.sum only. proxy.golang.org occasionally resets
+# streams mid-download and `go build` does not retry, which is the most common
+# cause of flaky CI image builds. The build step then runs with GOPROXY=off so
+# it fails loudly instead of using the network.
+# The module cache deliberately lives in this layer rather than in a cache mount:
+# BuildKit may garbage-collect cache mounts between `docker build` invocations
+# (observed on GitHub runners), whereas an evicted layer is simply rebuilt.
+RUN ./hack/retry.sh go mod download
 COPY pkg/secutil pkg/secutil
 COPY examples/instrumentation/go-synthetic examples/instrumentation/go-synthetic
 
@@ -31,10 +43,7 @@ ENV CGO_ENABLED=1
 ENV GOFIPS140=off
 ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
-ENV GOMODCACHE=/gocache/mod
-ENV GOCACHE=/gocache/build
-RUN --mount=type=cache,target=/gocache/mod \
-	--mount=type=cache,target=/gocache/build \
+RUN --mount=type=cache,target=/gocache/build \
 	--mount=type=cache,target=/var/cache/apt,sharing=locked \
 	--mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
 	if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
@@ -48,6 +57,7 @@ RUN --mount=type=cache,target=/gocache/mod \
 	gcc-x86-64-linux-gnu libc6-dev-amd64-cross; \
 	export CC=x86_64-linux-gnu-gcc; \
 	fi && \
+	export GOPROXY=off && \
 	GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 	go build -o go-synthetic ./examples/instrumentation/go-synthetic
 

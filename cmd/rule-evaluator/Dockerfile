@@ -21,12 +21,10 @@ COPY charts/values.global.yaml charts/values.global.yaml
 COPY go.mod go.mod
 COPY go.sum go.sum
 COPY tools tools
+COPY hack/retry.sh hack/retry.sh
 # Copy the Go vendor directory only if it exists. Vendor folder will automatically
 # cause 'go build' to use -mod=vendor flag (otherwise -mod=mod is used).
 COPY vendor* vendor
-COPY cmd/rule-evaluator cmd/rule-evaluator
-COPY pkg pkg
-COPY internal internal
 
 ENV GOEXPERIMENT=boringcrypto
 ENV CGO_ENABLED=1
@@ -36,8 +34,21 @@ ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
 ENV GOMODCACHE=/gocache/mod
 ENV GOCACHE=/gocache/build
-RUN --mount=type=cache,target=/gocache/mod \
-	--mount=type=cache,target=/gocache/build \
+# Pre-download Go modules (and the yq tool used below) with retries, before the
+# sources are copied so this layer is keyed on go.mod/go.sum only.
+# proxy.golang.org occasionally resets streams mid-download and `go build` does
+# not retry, which is the most common cause of flaky CI image builds. The build
+# step then runs with GOPROXY=off so it fails loudly instead of using the network.
+# The module cache deliberately lives in this layer rather than in a cache mount:
+# BuildKit may garbage-collect cache mounts between `docker build` invocations
+# (observed on GitHub runners), whereas an evicted layer is simply rebuilt.
+RUN --mount=type=cache,target=/gocache/build \
+	./hack/retry.sh go mod download && \
+	./hack/retry.sh go tool -modfile="tools/go.mod" yq --version
+COPY cmd/rule-evaluator cmd/rule-evaluator
+COPY pkg pkg
+COPY internal internal
+RUN --mount=type=cache,target=/gocache/build \
 	--mount=type=cache,target=/var/cache/apt,sharing=locked \
 	--mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
 	if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
@@ -51,6 +62,7 @@ RUN --mount=type=cache,target=/gocache/mod \
 	gcc-x86-64-linux-gnu libc6-dev-amd64-cross; \
 	export CC=x86_64-linux-gnu-gcc; \
 	fi && \
+	export GOPROXY=off && \
 	GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 	go build \
 	-ldflags="-X github.com/prometheus/common/version.Version=$(cat charts/values.global.yaml | go tool -modfile="tools/go.mod" yq '.version' ) \

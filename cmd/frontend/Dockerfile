@@ -43,7 +43,9 @@ ARG TARGETARCH
 ARG BUILDARCH
 WORKDIR /app
 COPY charts/values.global.yaml charts/values.global.yaml
-COPY --from=assets /app ./
+COPY go.mod go.sum ./
+COPY tools tools
+COPY hack/retry.sh hack/retry.sh
 
 ENV GOEXPERIMENT=boringcrypto
 ENV CGO_ENABLED=1
@@ -53,8 +55,19 @@ ENV GOOS=${TARGETOS}
 ENV GOARCH=${TARGETARCH}
 ENV GOMODCACHE=/gocache/mod
 ENV GOCACHE=/gocache/build
-RUN --mount=type=cache,target=/gocache/mod \
-	--mount=type=cache,target=/gocache/build \
+# Pre-download Go modules (and the yq tool used below) with retries, before the
+# sources are copied so this layer is keyed on go.mod/go.sum only.
+# proxy.golang.org occasionally resets streams mid-download and `go build` does
+# not retry, which is the most common cause of flaky CI image builds. The build
+# step then runs with GOPROXY=off so it fails loudly instead of using the network.
+# The module cache deliberately lives in this layer rather than in a cache mount:
+# BuildKit may garbage-collect cache mounts between `docker build` invocations
+# (observed on GitHub runners), whereas an evicted layer is simply rebuilt.
+RUN --mount=type=cache,target=/gocache/build \
+	./hack/retry.sh go mod download && \
+	./hack/retry.sh go tool -modfile="tools/go.mod" yq --version
+COPY --from=assets /app ./
+RUN --mount=type=cache,target=/gocache/build \
 	--mount=type=cache,target=/var/cache/apt,sharing=locked \
 	--mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
 	if [ "${TARGETARCH}" = "arm64" ] && [ "${BUILDARCH}" != "arm64" ]; then \
@@ -68,6 +81,7 @@ RUN --mount=type=cache,target=/gocache/mod \
 	gcc-x86-64-linux-gnu libc6-dev-amd64-cross; \
 	export CC=x86_64-linux-gnu-gcc; \
 	fi && \
+	export GOPROXY=off && \
 	GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 	go build \
 	-tags builtinassets \
