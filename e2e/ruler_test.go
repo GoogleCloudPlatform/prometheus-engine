@@ -852,6 +852,15 @@ func testInvalidRulesStatusAndEvents(
 					return false, fmt.Errorf("unexpected invalid rule file %q in ConfigMap BinaryData", badKey)
 				}
 			}
+			for _, validKey := range []string{
+				fmt.Sprintf("rules__%s__rules.yaml", userNamespace),
+				fmt.Sprintf("clusterrules__%s-cluster-rules.yaml", userNamespace),
+				fmt.Sprintf("globalrules__%s-global-rules.yaml", userNamespace),
+			} {
+				if cm.Data[validKey] == "" && len(cm.BinaryData[validKey]) == 0 {
+					return false, fmt.Errorf("expected valid rule file %q to remain non-empty in ConfigMap", validKey)
+				}
+			}
 
 			return true, nil
 		})

@@ -97,6 +97,10 @@ func compileCRDValidators(tb testing.TB, crdName string) (validation.SchemaValid
 const (
 	staticEstimatedCostLimit    uint64 = 10_000_000
 	staticEstimatedCRDCostLimit uint64 = 100_000_000
+
+	fuzzTestProjectID = "test-proj"
+	fuzzTestLocation  = "us-central1"
+	fuzzTestCluster   = "test-cluster"
 )
 
 func hasXValidations(s *structuralschema.Structural) bool {
@@ -200,15 +204,15 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 	globalRulesOpenAPI, globalRulesStructural, globalRulesCEL := compileCRDValidators(t, "globalrules.monitoring.googleapis.com")
 
 	type testCase struct {
-		name              string
-		rawPayload        map[string]any
-		spec              map[string]any
-		wantRulesValid    bool
-		wantClusterValid  bool
-		wantGlobalValid   bool
-		wantErrMsg        string
-		wantNoCELErrors   bool
-		skipWebhookParity bool
+		name             string
+		rawPayload       map[string]any
+		spec             map[string]any
+		wantRulesValid   bool
+		wantClusterValid bool
+		wantGlobalValid  bool
+		wantErrMsg       string
+		wantNoCELErrors  bool
+		skipConfigParity bool
 	}
 
 	cases := []testCase{
@@ -733,22 +737,22 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 					"namespace": "default",
 				},
 			},
-			wantRulesValid:    false,
-			wantClusterValid:  false,
-			wantGlobalValid:   false,
-			wantErrMsg:        "spec in body is required",
-			wantNoCELErrors:   true,
-			skipWebhookParity: true,
+			wantRulesValid:   false,
+			wantClusterValid: false,
+			wantGlobalValid:  false,
+			wantErrMsg:       "spec in body is required",
+			wantNoCELErrors:  true,
+			skipConfigParity: true,
 		},
 		{
-			name:              "omitted spec.groups rejected by OpenAPIv3 required",
-			spec:              map[string]any{},
-			wantRulesValid:    false,
-			wantClusterValid:  false,
-			wantGlobalValid:   false,
-			wantErrMsg:        "spec.groups in body is required",
-			wantNoCELErrors:   true,
-			skipWebhookParity: true,
+			name:             "omitted spec.groups rejected by OpenAPIv3 required",
+			spec:             map[string]any{},
+			wantRulesValid:   false,
+			wantClusterValid: false,
+			wantGlobalValid:  false,
+			wantErrMsg:       "spec.groups in body is required",
+			wantNoCELErrors:  true,
+			skipConfigParity: true,
 		},
 		{
 			name: "empty spec.groups array accepted",
@@ -760,7 +764,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 			wantGlobalValid:  true,
 		},
 		{
-			name: "omitted group.name rejected by OpenAPIv3 required and webhook",
+			name: "omitted group.name rejected by OpenAPIv3 required and RuleGroupsConfig",
 			spec: map[string]any{
 				"groups": []any{
 					map[string]any{
@@ -797,12 +801,12 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 					},
 				},
 			},
-			wantRulesValid:    false,
-			wantClusterValid:  false,
-			wantGlobalValid:   false,
-			wantErrMsg:        "rules in body is required",
-			wantNoCELErrors:   true,
-			skipWebhookParity: true,
+			wantRulesValid:   false,
+			wantClusterValid: false,
+			wantGlobalValid:  false,
+			wantErrMsg:       "rules in body is required",
+			wantNoCELErrors:  true,
+			skipConfigParity: true,
 		},
 		{
 			name: "empty group.rules array rejected by OpenAPIv3 minItems",
@@ -814,15 +818,15 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 					},
 				},
 			},
-			wantRulesValid:    false,
-			wantClusterValid:  false,
-			wantGlobalValid:   false,
-			wantErrMsg:        "rules in body should have at least 1 items",
-			wantNoCELErrors:   true,
-			skipWebhookParity: true,
+			wantRulesValid:   false,
+			wantClusterValid: false,
+			wantGlobalValid:  false,
+			wantErrMsg:       "rules in body should have at least 1 items",
+			wantNoCELErrors:  true,
+			skipConfigParity: true,
 		},
 		{
-			name: "omitted rule.expr rejected by OpenAPIv3 required and webhook",
+			name: "omitted rule.expr rejected by OpenAPIv3 required and RuleGroupsConfig",
 			spec: map[string]any{
 				"groups": []any{
 					map[string]any{
@@ -857,12 +861,12 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 					},
 				},
 			},
-			wantRulesValid:    false,
-			wantClusterValid:  false,
-			wantGlobalValid:   false,
-			wantErrMsg:        "interval in body should be at least 1 chars long",
-			wantNoCELErrors:   true,
-			skipWebhookParity: true,
+			wantRulesValid:   false,
+			wantClusterValid: false,
+			wantGlobalValid:  false,
+			wantErrMsg:       "interval in body should be at least 1 chars long",
+			wantNoCELErrors:  true,
+			skipConfigParity: true,
 		},
 		{
 			name: "explicit empty for string on alerting rule rejected by OpenAPIv3 minLength",
@@ -880,12 +884,12 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 					},
 				},
 			},
-			wantRulesValid:    false,
-			wantClusterValid:  false,
-			wantGlobalValid:   false,
-			wantErrMsg:        "for in body should be at least 1 chars long",
-			wantNoCELErrors:   true,
-			skipWebhookParity: true,
+			wantRulesValid:   false,
+			wantClusterValid: false,
+			wantGlobalValid:  false,
+			wantErrMsg:       "for in body should be at least 1 chars long",
+			wantNoCELErrors:  true,
+			skipConfigParity: true,
 		},
 		{
 			name: "multiline group.name and rule.alert with leading newline or space accepted",
@@ -962,7 +966,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			checkKind := func(kind string, openapiVal validation.SchemaValidator, structural *structuralschema.Structural, celVal *cel.Validator, wantValid bool, runWebhook func([]byte) error) {
+			checkKind := func(kind string, openapiVal validation.SchemaValidator, structural *structuralschema.Structural, celVal *cel.Validator, wantValid bool, runConfig func([]byte) error) {
 				payload := map[string]any{
 					"apiVersion": "monitoring.googleapis.com/v1",
 					"kind":       kind,
@@ -1025,15 +1029,15 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 					}
 				}
 
-				if !tc.skipWebhookParity {
+				if !tc.skipConfigParity {
 					defaultedData, err := json.Marshal(validationPayload)
 					if err != nil {
 						t.Fatalf("marshal defaulted %s: %v", kind, err)
 					}
-					webhookErr := runWebhook(defaultedData)
-					webhookValid := webhookErr == nil
-					if webhookValid != wantValid {
-						t.Errorf("%s webhook validation got valid=%v, want %v (err=%v)", kind, webhookValid, wantValid, webhookErr)
+					configErr := runConfig(defaultedData)
+					configValid := configErr == nil
+					if configValid != wantValid {
+						t.Errorf("%s RuleGroupsConfig validation got valid=%v, want %v (err=%v)", kind, configValid, wantValid, configErr)
 					}
 				}
 			}
@@ -1043,7 +1047,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 				if err := json.Unmarshal(b, &r, json.RejectUnknownMembers(true)); err != nil {
 					return err
 				}
-				_, err := r.RuleGroupsConfig("", "", "")
+				_, err := r.RuleGroupsConfig(fuzzTestProjectID, fuzzTestLocation, fuzzTestCluster)
 				return err
 			})
 			checkKind("ClusterRules", clusterRulesOpenAPI, clusterRulesStructural, clusterRulesCEL, tc.wantClusterValid, func(b []byte) error {
@@ -1051,7 +1055,7 @@ func TestRulesCELAndOpenAPICases(t *testing.T) {
 				if err := json.Unmarshal(b, &r, json.RejectUnknownMembers(true)); err != nil {
 					return err
 				}
-				_, err := r.RuleGroupsConfig("", "", "")
+				_, err := r.RuleGroupsConfig(fuzzTestProjectID, fuzzTestLocation, fuzzTestCluster)
 				return err
 			})
 			checkKind("GlobalRules", globalRulesOpenAPI, globalRulesStructural, globalRulesCEL, tc.wantGlobalValid, func(b []byte) error {
@@ -1160,7 +1164,7 @@ func runRulesDifferentialFuzz(
 	f *testing.F,
 	crdName string,
 	kind string,
-	validateWebhook func(data []byte) error,
+	validateConfig func(data []byte) error,
 ) {
 	openapiValidator, structural, celValidator := compileCRDValidators(f, crdName)
 	seedRulesCorpus(f, kind)
@@ -1186,28 +1190,28 @@ func runRulesDifferentialFuzz(
 		if err != nil {
 			t.Fatalf("marshal defaulted %s: %v", kind, err)
 		}
-		webhookErr := validateWebhook(defaultedData)
-		if errors.Is(webhookErr, errSkipUnmarshal) {
+		configErr := validateConfig(defaultedData)
+		if errors.Is(configErr, errSkipUnmarshal) {
 			t.Skip()
 		}
-		webhookPassed := webhookErr == nil
+		configPassed := configErr == nil
 
 		openapiResult := openapiValidator.Validate(unstructuredObj)
 		celErrors, _ := celValidator.Validate(t.Context(), nil, structural, unstructuredObj, nil, celconfig.RuntimeCELCostBudget)
 		crdPassed := !openapiResult.HasErrors() && len(celErrors) == 0
 
-		if crdPassed != webhookPassed {
-			if !crdPassed && webhookPassed {
+		if crdPassed != configPassed {
+			if !crdPassed && configPassed {
 				if isIntentionalOpenAPISchemaTightening(openapiResult.Errors, celErrors) {
 					t.Skip("Narrowly skipping: intentional OpenAPIv3 schema tightening over Go struct unmarshaling")
 				}
 				t.Fatalf("Discrepancy (False Positive): CRD validation rejected %s, but RuleGroupsConfig accepted it.\nOpenAPI Errors: %v\nCEL Errors: %v\nPayload: %s", kind, openapiResult.Errors, celErrors, string(data))
 			}
-			if crdPassed && !webhookPassed {
-				if isIntentionalPostAdmissionRulesError(webhookErr) {
+			if crdPassed && !configPassed {
+				if isIntentionalPostAdmissionRulesError(configErr) {
 					t.Skip("Narrowly skipping: intentional post-admission operator validation check")
 				}
-				t.Fatalf("Discrepancy (False Negative): CRD validation accepted %s, but RuleGroupsConfig rejected it.\nError: %v\nPayload: %s", kind, webhookErr, string(data))
+				t.Fatalf("Discrepancy (False Negative): CRD validation accepted %s, but RuleGroupsConfig rejected it.\nRuleGroupsConfig Error: %v\nPayload: %s", kind, configErr, string(data))
 			}
 		}
 	})
@@ -1300,7 +1304,7 @@ func FuzzRules(f *testing.F) {
 		if err := json.Unmarshal(data, &r, json.RejectUnknownMembers(true)); err != nil {
 			return errSkipUnmarshal
 		}
-		_, err := r.RuleGroupsConfig("", "", "")
+		_, err := r.RuleGroupsConfig(fuzzTestProjectID, fuzzTestLocation, fuzzTestCluster)
 		return err
 	})
 }
@@ -1313,7 +1317,7 @@ func FuzzClusterRules(f *testing.F) {
 		if err := json.Unmarshal(data, &r, json.RejectUnknownMembers(true)); err != nil {
 			return errSkipUnmarshal
 		}
-		_, err := r.RuleGroupsConfig("", "", "")
+		_, err := r.RuleGroupsConfig(fuzzTestProjectID, fuzzTestLocation, fuzzTestCluster)
 		return err
 	})
 }
@@ -1407,7 +1411,7 @@ func FuzzRulesStructured(f *testing.F) {
 			celValidator     *cel.Validator
 			data             []byte
 			err              error
-			webhookErr       error
+			configErr        error
 		)
 
 		switch kindIdx % 3 {
@@ -1425,7 +1429,7 @@ func FuzzRulesStructured(f *testing.F) {
 			if err != nil {
 				t.Skip()
 			}
-			_, webhookErr = obj.RuleGroupsConfig("", "", "")
+			_, configErr = obj.RuleGroupsConfig(fuzzTestProjectID, fuzzTestLocation, fuzzTestCluster)
 		case 1:
 			kind = "ClusterRules"
 			openapiValidator, structural, celValidator = clusterOpenAPI, clusterStructural, clusterCEL
@@ -1439,7 +1443,7 @@ func FuzzRulesStructured(f *testing.F) {
 			if err != nil {
 				t.Skip()
 			}
-			_, webhookErr = obj.RuleGroupsConfig("", "", "")
+			_, configErr = obj.RuleGroupsConfig(fuzzTestProjectID, fuzzTestLocation, fuzzTestCluster)
 		default:
 			kind = "GlobalRules"
 			openapiValidator, structural, celValidator = globalOpenAPI, globalStructural, globalCEL
@@ -1453,7 +1457,7 @@ func FuzzRulesStructured(f *testing.F) {
 			if err != nil {
 				t.Skip()
 			}
-			_, webhookErr = obj.RuleGroupsConfig()
+			_, configErr = obj.RuleGroupsConfig()
 		}
 
 		var unstructuredObj map[string]any
@@ -1467,20 +1471,20 @@ func FuzzRulesStructured(f *testing.F) {
 		openapiResult := openapiValidator.Validate(unstructuredObj)
 		celErrors, _ := celValidator.Validate(t.Context(), nil, structural, unstructuredObj, nil, celconfig.RuntimeCELCostBudget)
 		crdPassed := !openapiResult.HasErrors() && len(celErrors) == 0
-		webhookPassed := webhookErr == nil
+		configPassed := configErr == nil
 
-		if crdPassed != webhookPassed {
-			if !crdPassed && webhookPassed {
+		if crdPassed != configPassed {
+			if !crdPassed && configPassed {
 				if isIntentionalOpenAPISchemaTightening(openapiResult.Errors, celErrors) {
 					t.Skip("Narrowly skipping: intentional OpenAPIv3 schema tightening over Go struct unmarshaling")
 				}
-				t.Fatalf("Discrepancy (False Positive) in %s: CRD rejected, Webhook accepted.\nOpenAPI Errors: %v\nCEL Errors: %v\nPayload: %s", kind, openapiResult.Errors, celErrors, string(data))
+				t.Fatalf("Discrepancy (False Positive) in %s: CRD rejected, RuleGroupsConfig accepted.\nOpenAPI Errors: %v\nCEL Errors: %v\nPayload: %s", kind, openapiResult.Errors, celErrors, string(data))
 			}
-			if crdPassed && !webhookPassed {
-				if isIntentionalPostAdmissionRulesError(webhookErr) {
+			if crdPassed && !configPassed {
+				if isIntentionalPostAdmissionRulesError(configErr) {
 					t.Skip("Narrowly skipping: intentional post-admission operator validation check")
 				}
-				t.Fatalf("Discrepancy (False Negative) in %s: CRD accepted, Webhook rejected.\nWebhook Error: %v\nPayload: %s", kind, webhookErr, string(data))
+				t.Fatalf("Discrepancy (False Negative) in %s: CRD accepted, RuleGroupsConfig rejected.\nRuleGroupsConfig Error: %v\nPayload: %s", kind, configErr, string(data))
 			}
 		}
 	})
