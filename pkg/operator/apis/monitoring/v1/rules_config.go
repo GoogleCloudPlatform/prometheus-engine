@@ -51,12 +51,16 @@ func (r *GlobalRules) RuleGroupsConfig() (string, error) {
 }
 
 func ruleGroupsConfig(ruleGroups []RuleGroup, labelSet map[string]string) (string, error) {
-	rs, err := fromAPIRules(ruleGroups)
+	var errs []error
+	rs, exprsValidated, err := fromAPIRules(ruleGroups)
 	if err != nil {
-		return "", fmt.Errorf("converting rules failed: %w", err)
+		errs = append(errs, fmt.Errorf("converting rules failed: %w", err))
 	}
-	if err := scope(&rs, labelSet); err != nil {
-		return "", fmt.Errorf("isolating rules failed: %w", err)
+	if err := scopeRules(&rs, labelSet, !exprsValidated); err != nil {
+		errs = append(errs, fmt.Errorf("isolating rules failed: %w", err))
+	}
+	if len(errs) > 0 {
+		return "", errors.Join(errs...)
 	}
 	result, err := marshalRules(rs)
 	if err != nil {
@@ -67,8 +71,13 @@ func ruleGroupsConfig(ruleGroups []RuleGroup, labelSet map[string]string) (strin
 
 // fromAPIRules constructs rule groups from a list of rule groups in the
 // resource API format. It ensures that the groups are valid according to the
-// Prometheus upstream validation logic.
-func fromAPIRules(groups []RuleGroup) (result rulefmt.RuleGroups, err error) {
+// Prometheus upstream validation logic, and reports whether rulefmt.Parse
+// validated rule expressions.
+func fromAPIRules(groups []RuleGroup) (rulefmt.RuleGroups, bool, error) {
+	var (
+		result rulefmt.RuleGroups
+		errs   []error
+	)
 	for _, g := range groups {
 		var rules []rulefmt.Rule
 
@@ -82,11 +91,11 @@ func fromAPIRules(groups []RuleGroup) (result rulefmt.RuleGroups, err error) {
 			}
 			if r.For != "" {
 				if r.Record != "" {
-					return result, errors.New("invalid field 'for' in recording rule")
-				}
-				rule.For, err = model.ParseDuration(r.For)
-				if err != nil {
-					return result, fmt.Errorf("parse 'for' duration: %w", err)
+					errs = append(errs, errors.New("invalid field 'for' in recording rule"))
+				} else if d, err := model.ParseDuration(r.For); err != nil {
+					errs = append(errs, fmt.Errorf("parse 'for' duration: %w", err))
+				} else {
+					rule.For = d
 				}
 			}
 			rules = append(rules, rule)
@@ -96,9 +105,10 @@ func fromAPIRules(groups []RuleGroup) (result rulefmt.RuleGroups, err error) {
 			Rules: rules,
 		}
 		if g.Interval != "" {
-			group.Interval, err = model.ParseDuration(g.Interval)
-			if err != nil {
-				return result, fmt.Errorf("parse evaluation interval: %w", err)
+			if d, err := model.ParseDuration(g.Interval); err != nil {
+				errs = append(errs, fmt.Errorf("parse evaluation interval: %w", err))
+			} else {
+				group.Interval = d
 			}
 		}
 		result.Groups = append(result.Groups, group)
@@ -107,12 +117,14 @@ func fromAPIRules(groups []RuleGroup) (result rulefmt.RuleGroups, err error) {
 	// which is only exposed via rulefmt.Parse.
 	b, err := marshalRules(result)
 	if err != nil {
-		return result, err
+		errs = append(errs, err)
+		return result, false, errors.Join(errs...)
 	}
-	if _, errs := rulefmt.Parse(b, false, model.LegacyValidation, parser.NewParser(parser.Options{}), promslog.NewNopLogger()); len(errs) > 0 {
-		return result, fmt.Errorf("loading rules failed: %w", errors.Join(errs...))
+	parsed, parseErrs := rulefmt.Parse(b, false, model.LegacyValidation, parser.NewParser(parser.Options{}), promslog.NewNopLogger())
+	if len(parseErrs) > 0 {
+		errs = append(errs, fmt.Errorf("loading rules failed: %w", errors.Join(parseErrs...)))
 	}
-	return result, nil
+	return result, parsed != nil, errors.Join(errs...)
 }
 
 // marshalRules serializes rule groups to YAML using 2-space indentation.
@@ -129,37 +141,43 @@ func marshalRules(rs rulefmt.RuleGroups) ([]byte, error) {
 // are aggregated away.
 // An error is returned if metric selectors have a conflicting selector set.
 func scope(groups *rulefmt.RuleGroups, lset map[string]string) error {
+	return scopeRules(groups, lset, true)
+}
+
+func scopeRules(groups *rulefmt.RuleGroups, lset map[string]string, reportParseErrors bool) error {
 	p := parser.NewParser(parser.Options{})
 	keys := slices.Sorted(maps.Keys(lset))
 	var errs []error
 	for _, g := range groups.Groups {
 		for i, r := range g.Rules {
+			origRule := r
 			expr, err := p.ParseExpr(r.Expr)
 			if err != nil {
-				errs = append(errs, fmt.Errorf("group %q rule #%d: parse PromQL expression: %w", g.Name, i+1, err))
-				continue
-			}
-
-			// Traverse the query and inject label matchers to all metric selectors.
-			err = walkExpr(expr, func(n parser.Node) error {
-				vs, ok := n.(*parser.VectorSelector)
-				if ok {
-					origVS := vs.String()
-					for _, name := range keys {
-						value := lset[name]
-						if err := setSelector(vs, name, value); err != nil {
-							return fmt.Errorf("set isolation selector %s=%q on %s: %w", name, value, origVS, err)
+				if reportParseErrors {
+					errs = append(errs, fmt.Errorf("group %q rule #%d: parse PromQL expression: %w", g.Name, i+1, err))
+				}
+			} else {
+				// Traverse the query and inject label matchers to all metric selectors.
+				err = walkExpr(expr, func(n parser.Node) error {
+					vs, ok := n.(*parser.VectorSelector)
+					if ok {
+						origVS := vs.String()
+						for _, name := range keys {
+							value := lset[name]
+							if err := setSelector(vs, name, value); err != nil {
+								return fmt.Errorf("set isolation selector %s=%q on %s: %w", name, value, origVS, err)
+							}
 						}
 					}
+					return nil
+				})
+				if err != nil {
+					errs = append(errs, fmt.Errorf("group %q rule #%d: %w", g.Name, i+1, err))
 				}
-				return nil
-			})
-			if err != nil {
-				errs = append(errs, fmt.Errorf("group %q rule #%d: %w", g.Name, i+1, err))
+				r.Expr = expr.String()
 			}
-			origRule := r
+
 			r.Labels = maps.Clone(r.Labels)
-			r.Expr = expr.String()
 
 			// Add labels to produced label sets (metrics or alerts) in case
 			// they got aggregated away.
