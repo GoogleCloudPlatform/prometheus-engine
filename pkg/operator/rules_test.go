@@ -566,6 +566,89 @@ func TestRulesInvalidEvents(t *testing.T) {
 	if len(nsEvents.Items) != 2 {
 		t.Errorf("expected 2 resource events in team-a after generation bump, got %d", len(nsEvents.Items))
 	}
+
+	t.Run("combined syntax and scope conflict in status and events", func(t *testing.T) {
+		combinedRules := &monitoringv1.Rules{
+			Name:       "invalid-rules",
+			Namespace:  "team-a",
+			Generation: 1,
+			Spec: monitoringv1.RulesSpec{
+				Groups: []monitoringv1.RuleGroup{
+					{
+						Name: "invalid-group",
+						Rules: []monitoringv1.Rule{
+							{
+								Record: "bad_expr",
+								Expr:   "sum(rate(up[5m])",
+							},
+							{
+								Record: "bad_scope",
+								Expr:   `up{namespace="other-ns"}`,
+							},
+						},
+					},
+				},
+			},
+		}
+
+		subClient := newFakeClientBuilder().WithObjects(combinedRules).Build()
+		subReconciler := rulesReconciler{
+			client: subClient,
+			opts: Options{
+				OperatorNamespace: DefaultOperatorNamespace,
+			},
+		}
+
+		if err := subReconciler.ensureRuleConfigs(t.Context(), "test-proj", "us-central1", "test-cluster", monitoringv1.CompressionNone); err != nil {
+			t.Fatalf("ensureRuleConfigs failed: %v", err)
+		}
+
+		var got monitoringv1.Rules
+		if err := subClient.Get(t.Context(), client.ObjectKeyFromObject(combinedRules), &got); err != nil {
+			t.Fatalf("get combinedRules: %v", err)
+		}
+		if len(got.Status.Conditions) != 1 {
+			t.Fatalf("expected 1 condition, got %d", len(got.Status.Conditions))
+		}
+		cond := got.Status.Conditions[0]
+		if cond.Type != monitoringv1.ConfigurationCreateSuccess || cond.Status != corev1.ConditionFalse || cond.Reason != reasonRuleConfigError {
+			t.Errorf("unexpected condition metadata: %+v", cond)
+		}
+		for _, wantSubstr := range []string{"could not parse expression", "conflicting label matcher"} {
+			if !strings.Contains(cond.Message, wantSubstr) {
+				t.Errorf("expected condition Message %q to contain %q", cond.Message, wantSubstr)
+			}
+		}
+		if strings.Contains(cond.Message, "parse PromQL expression") {
+			t.Errorf("expected condition Message %q not to contain duplicate PromQL parse error", cond.Message)
+		}
+
+		var subOpEvents eventsv1.EventList
+		if err := subClient.List(t.Context(), &subOpEvents, client.InNamespace(DefaultOperatorNamespace)); err != nil {
+			t.Fatalf("list operator events: %v", err)
+		}
+		if len(subOpEvents.Items) != 1 {
+			t.Fatalf("expected 1 workload event, got %d", len(subOpEvents.Items))
+		}
+		for _, wantSubstr := range []string{"could not parse expression", "conflicting label matcher"} {
+			if !strings.Contains(subOpEvents.Items[0].Note, wantSubstr) {
+				t.Errorf("expected workload event Note %q to contain %q", subOpEvents.Items[0].Note, wantSubstr)
+			}
+		}
+
+		var subNsEvents eventsv1.EventList
+		if err := subClient.List(t.Context(), &subNsEvents, client.InNamespace("team-a")); err != nil {
+			t.Fatalf("list namespace events: %v", err)
+		}
+		if len(subNsEvents.Items) != 1 {
+			t.Fatalf("expected 1 namespace event, got %d", len(subNsEvents.Items))
+		}
+		for _, wantSubstr := range []string{"could not parse expression", "conflicting label matcher"} {
+			if !strings.Contains(subNsEvents.Items[0].Note, wantSubstr) {
+				t.Errorf("expected namespace event Note %q to contain %q", subNsEvents.Items[0].Note, wantSubstr)
+			}
+		}
+	})
 }
 
 func TestRulesReconcilerValidationAndEventEdgeCases(t *testing.T) {
