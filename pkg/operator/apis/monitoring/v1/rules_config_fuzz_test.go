@@ -1276,24 +1276,114 @@ func isIntentionalOpenAPISchemaTightening(openapiErrs []error, celErrs field.Err
 	return true
 }
 
-// isIntentionalPostAdmissionRulesError returns true only for errors that are intentionally
-// deferred to the operator reconciler (PromQL expression parsing, PromQL selector scope
-// matcher conflicts, Go template parsing in alert labels/annotations, YAML control characters)
-// or known kube-openapi duration format discrepancies.
-func isIntentionalPostAdmissionRulesError(err error) bool {
+// unwrapJoinedErrors splits an error across any errors.Join (Unwrap() []error)
+// boundaries—including joined errors wrapped with fmt.Errorf("%w")—into the
+// individual non-joined leaf errors.
+func unwrapJoinedErrors(err error) []error {
+	for e := err; e != nil; e = errors.Unwrap(e) {
+		if multi, ok := e.(interface{ Unwrap() []error }); ok {
+			var errs []error
+			for _, sub := range multi.Unwrap() {
+				errs = append(errs, unwrapJoinedErrors(sub)...)
+			}
+			return errs
+		}
+	}
 	if err == nil {
+		return nil
+	}
+	return []error{err}
+}
+
+// isIntentionalPostAdmissionRulesError returns true only when every joined leaf error is
+// intentionally deferred to the operator reconciler (PromQL expression parsing, PromQL
+// selector scope matcher conflicts, Go template parsing in alert labels/annotations, YAML
+// control characters) or a known kube-openapi duration format discrepancy.
+func isIntentionalPostAdmissionRulesError(err error) bool {
+	errs := unwrapJoinedErrors(err)
+	if len(errs) == 0 {
 		return false
 	}
-	if isDurationValidationDiscrepancy(err) {
-		return true
+	for _, e := range errs {
+		if isDurationValidationDiscrepancy(e) {
+			continue
+		}
+		msg := e.Error()
+		allowed := strings.Contains(msg, "could not parse expression") ||
+			strings.Contains(msg, "parse PromQL expression") ||
+			strings.Contains(msg, "conflicting label matcher") ||
+			strings.Contains(msg, "template: __alert_") ||
+			strings.Contains(msg, "executing template __alert_") ||
+			strings.Contains(msg, "control characters are not allowed")
+		if !allowed {
+			return false
+		}
 	}
-	msg := err.Error()
-	return strings.Contains(msg, "could not parse expression") ||
-		strings.Contains(msg, "parse PromQL expression") ||
-		strings.Contains(msg, "conflicting label matcher") ||
-		strings.Contains(msg, "template: __alert_") ||
-		strings.Contains(msg, "executing template __alert_") ||
-		strings.Contains(msg, "control characters are not allowed")
+	return true
+}
+
+func TestIsIntentionalPostAdmissionRulesError(t *testing.T) {
+	if isIntentionalPostAdmissionRulesError(nil) {
+		t.Fatal("expected false for nil error")
+	}
+
+	// Both errors are intentional post-admission checks (PromQL syntax + scope selector conflict).
+	postAdmissionOnly := Rules{
+		Namespace: "default",
+		Spec: RulesSpec{
+			Groups: []RuleGroup{
+				{
+					Name: "g1",
+					Rules: []Rule{
+						{
+							Record: "valid_metric_1",
+							Expr:   "up +",
+						},
+						{
+							Record: "valid_metric_2",
+							Expr:   `up{namespace="other"}`,
+						},
+					},
+				},
+			},
+		},
+	}
+	_, err := postAdmissionOnly.RuleGroupsConfig(fuzzTestProjectID, fuzzTestLocation, fuzzTestCluster)
+	if err == nil {
+		t.Fatal("expected error from RuleGroupsConfig")
+	}
+	if !isIntentionalPostAdmissionRulesError(err) {
+		t.Fatalf("expected true when all joined errors are post-admission checks, got false for:\n%v", err)
+	}
+
+	// Mixed error: a post-admission PromQL syntax error joined with a CRD-level validation error
+	// (invalid recording rule metric name and reserved label conflict) must not be masked.
+	mixed := Rules{
+		Namespace: "default",
+		Spec: RulesSpec{
+			Groups: []RuleGroup{
+				{
+					Name: "g1",
+					Rules: []Rule{
+						{
+							Record: "0invalid_metric",
+							Expr:   "up +",
+							Labels: map[string]string{
+								"namespace": "other",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	_, err = mixed.RuleGroupsConfig(fuzzTestProjectID, fuzzTestLocation, fuzzTestCluster)
+	if err == nil {
+		t.Fatal("expected error from RuleGroupsConfig")
+	}
+	if isIntentionalPostAdmissionRulesError(err) {
+		t.Fatalf("expected false when a post-admission error is joined with CRD-level errors, got true for:\n%v", err)
+	}
 }
 
 // FuzzRules runs differential fuzzing between the OpenAPIv3/CEL validations in the Rules CRD
