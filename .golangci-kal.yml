@@ -1,0 +1,103 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    - kubeapilinter
+  settings:
+    custom:
+      kubeapilinter:
+        type: module
+        description: kube-api-linter validates Kubernetes API types and CRD conventions.
+        settings:
+          linters:
+            disable:
+              - "*"
+            enable:
+              - arrayofstruct
+              - defaultorrequired
+              - defaults
+              - nodurations
+              - nonpointerstructs
+              - optionalfields
+              - optionalorrequired
+              - requiredfields
+              - ssatags
+          lintersConfig:
+            defaults:
+              preferredDefaultMarker: kubebuilder:default
+              omitZero:
+                policy: Forbid
+            optionalfields:
+              pointers:
+                preference: WhenRequired
+              omitZero:
+                policy: Forbid
+            requiredfields:
+              omitZero:
+                policy: Forbid
+  exclusions:
+    paths:
+      - '_test\.go$'
+      # Legacy unserved v1alpha1 API types are frozen for backwards compatibility.
+      - '^pkg/operator/apis/monitoring/v1alpha1/'
+      # Internal admission webhook helper structs, not CRD API types.
+      - '^pkg/operator/apis/monitoring/v1/operator_admission\.go$'
+    rules:
+      # Preexisting v1 CRD fields that predate kube-api-linter adoption.
+      # Scoped to exact Type.Field identifiers so all newly added types and
+      # fields in pkg/operator/apis/monitoring/v1 are strictly validated.
+      - path: '^pkg/operator/apis/monitoring/v1/'
+        linters:
+          - kubeapilinter
+        text: '^arrayofstruct: (?:(?:embedded )?field )?(AlertingSpec\.Alertmanagers|ClusterTargetLabels\.FromPod|MonitoringStatus\.Conditions|OperatorConfig\.Exports|PodMonitoringStatus\.EndpointStatuses|RuleGroup\.Rules|RulesSpec\.Groups|SampleGroup\.SampleTargets|ScrapeEndpoint\.MetricRelabeling|ScrapeEndpointStatus\.SampleGroups|ScrapeNodeEndpoint\.MetricRelabeling|TargetLabels\.FromPod)\b'
+      - path: '^pkg/operator/apis/monitoring/v1/'
+        linters:
+          - kubeapilinter
+        text: '^defaultorrequired: (?:(?:embedded )?field )?(ScrapeNodeEndpoint\.Interval)\b'
+      - path: '^pkg/operator/apis/monitoring/v1/'
+        linters:
+          - kubeapilinter
+        text: '^defaults: (?:(?:embedded )?field )?(ClusterPodMonitoringSpec\.TargetLabels|ManagedAlertmanagerSpec\.ConfigSecret|OperatorConfig\.ManagedAlertmanager|PodMonitoringSpec\.TargetLabels|RuleGroup\.Interval|ScrapeNodeEndpoint\.Interval|TargetLabels\.Metadata)\b'
+      - path: '^pkg/operator/apis/monitoring/v1/'
+        linters:
+          - kubeapilinter
+        text: '^nonpointerstructs: (?:(?:embedded )?field )?(ClusterNodeMonitoring\.Spec|ClusterPodMonitoring\.Spec|ClusterRules\.Spec|CollectionSpec\.Filter|GlobalRules\.Spec|OperatorConfig\.Collection|OperatorConfig\.Features|OperatorConfig\.Rules|OperatorConfig\.Scaling|OperatorFeatures\.Config|OperatorFeatures\.TargetStatus|PodMonitoring\.Spec|RuleEvaluatorSpec\.Alerting|Rules\.Spec|ScalingSpec\.VPA)\b'
+      - path: '^pkg/operator/apis/monitoring/v1/'
+        linters:
+          - kubeapilinter
+        text: '^optionalfields: (?:(?:embedded )?field )?(Auth\.Type|BasicAuth\.Username|ClusterNodeMonitoring\.Status|ClusterNodeTLS\.InsecureSkipVerify|ClusterPodMonitoring\.Status|ClusterPodMonitoringSpec\.TargetLabels|ClusterRules\.Status|ClusterTargetLabels\.Metadata|GlobalRules\.Status|MonitoringCondition\.LastTransitionTime|MonitoringCondition\.LastUpdateTime|MonitoringCondition\.Message|MonitoringCondition\.Reason|MonitoringStatus\.ObservedGeneration|OAuth2\.ClientID|OAuth2\.TokenURL|PodMonitoring\.Status|PodMonitoringSpec\.TargetLabels|ProxyConfig\.ProxyURL|Rules\.Status|SecretKeySelector\.Namespace|TLS\.InsecureSkipVerify|TLS\.ServerName|TargetLabels\.Metadata)\b'
+      - path: '^pkg/operator/apis/monitoring/v1/'
+        linters:
+          - kubeapilinter
+        text: '^optionalorrequired: (?:(?:embedded )?field )?(AlertingSpec\.Alertmanagers|AlertmanagerEndpoints\.APIVersion|AlertmanagerEndpoints\.Authorization|AlertmanagerEndpoints\.Name|AlertmanagerEndpoints\.Namespace|AlertmanagerEndpoints\.PathPrefix|AlertmanagerEndpoints\.Port|AlertmanagerEndpoints\.Scheme|AlertmanagerEndpoints\.TLS|AlertmanagerEndpoints\.Timeout|Authorization\.Credentials|Authorization\.Type|ClusterNodeMonitoring\.Spec|ClusterNodeMonitoring\.metav1\.ObjectMeta|ClusterNodeMonitoringSpec\.Endpoints|ClusterNodeMonitoringSpec\.Limits|ClusterNodeMonitoringSpec\.Selector|ClusterPodMonitoring\.Spec|ClusterPodMonitoring\.metav1\.ObjectMeta|ClusterPodMonitoringSpec\.Endpoints|ClusterPodMonitoringSpec\.FilterRunning|ClusterPodMonitoringSpec\.Limits|ClusterPodMonitoringSpec\.Selector|ClusterRules\.Spec|ClusterRules\.metav1\.ObjectMeta|ClusterTargetLabels\.FromPod|CollectionSpec\.Compression|CollectionSpec\.Credentials|CollectionSpec\.ExternalLabels|CollectionSpec\.Filter|CollectionSpec\.KubeletScraping|ConfigSpec\.Compression|ExportFilters\.EnableMatchOneOf|ExportFilters\.MatchOneOf|ExportSpec\.URL|GlobalRules\.Spec|GlobalRules\.metav1\.ObjectMeta|KubeletScraping\.Interval|KubeletScraping\.TLSInsecureSkipVerify|LabelMapping\.From|LabelMapping\.To|ManagedAlertmanagerSpec\.ConfigSecret|ManagedAlertmanagerSpec\.ExternalURL|MonitoringCondition\.Status|MonitoringCondition\.Type|MonitoringStatus\.Conditions|OperatorConfig\.Collection|OperatorConfig\.Exports|OperatorConfig\.Features|OperatorConfig\.ManagedAlertmanager|OperatorConfig\.Rules|OperatorConfig\.Scaling|OperatorConfig\.metav1\.ObjectMeta|OperatorFeatures\.Config|OperatorFeatures\.TargetStatus|PodMonitoring\.Spec|PodMonitoring\.metav1\.ObjectMeta|PodMonitoringSpec\.Endpoints|PodMonitoringSpec\.FilterRunning|PodMonitoringSpec\.Limits|PodMonitoringSpec\.Selector|PodMonitoringStatus\.EndpointStatuses|RelabelingRule\.Action|RelabelingRule\.Modulus|RelabelingRule\.Regex|RelabelingRule\.Replacement|RelabelingRule\.Separator|RelabelingRule\.SourceLabels|RelabelingRule\.TargetLabel|Rule\.Alert|Rule\.Annotations|Rule\.Expr|Rule\.For|Rule\.Labels|Rule\.Record|RuleEvaluatorSpec\.Alerting|RuleEvaluatorSpec\.Credentials|RuleEvaluatorSpec\.ExternalLabels|RuleEvaluatorSpec\.GeneratorURL|RuleEvaluatorSpec\.QueryProjectID|RuleGroup\.Interval|RuleGroup\.Name|RuleGroup\.Rules|Rules\.Spec|Rules\.metav1\.ObjectMeta|RulesSpec\.Groups|SampleGroup\.SampleTargets|SampleTarget\.Health|SampleTarget\.Labels|SampleTarget\.LastError|SampleTarget\.LastScrapeDurationSeconds|ScalingSpec\.VPA|ScrapeEndpoint\.MetricRelabeling|ScrapeEndpoint\.Params|ScrapeEndpoint\.Path|ScrapeEndpoint\.Scheme|ScrapeEndpoint\.Timeout|ScrapeEndpointStatus\.ActiveTargets|ScrapeEndpointStatus\.CollectorsFraction|ScrapeEndpointStatus\.LastUpdateTime|ScrapeEndpointStatus\.Name|ScrapeEndpointStatus\.SampleGroups|ScrapeEndpointStatus\.UnhealthyTargets|ScrapeLimits\.LabelNameLength|ScrapeLimits\.LabelValueLength|ScrapeLimits\.Labels|ScrapeLimits\.Samples|ScrapeNodeEndpoint\.MetricRelabeling|ScrapeNodeEndpoint\.Params|ScrapeNodeEndpoint\.Path|ScrapeNodeEndpoint\.Scheme|ScrapeNodeEndpoint\.Timeout|SecretKeySelector\.Key|SecretKeySelector\.Name|SecretOrConfigMap\.ConfigMap|SecretOrConfigMap\.Secret|TLS\.CA|TLSConfig\.CA|TLSConfig\.Cert|TLSConfig\.InsecureSkipVerify|TLSConfig\.KeySecret|TLSConfig\.MaxVersion|TLSConfig\.MinVersion|TLSConfig\.ServerName|TargetLabels\.FromPod|TargetStatusSpec\.Enabled|VPASpec\.Enabled)\b'
+      - path: '^pkg/operator/apis/monitoring/v1/'
+        linters:
+          - kubeapilinter
+        text: '^requiredfields: (?:(?:embedded )?field )?(ScrapeEndpoint\.Interval|ScrapeEndpoint\.Port|ScrapeNodeEndpoint\.Interval)\b'
+      - path: '^pkg/operator/apis/monitoring/v1/'
+        linters:
+          - kubeapilinter
+        text: '^ssatags: (?:(?:embedded )?field )?(AlertingSpec\.Alertmanagers|ClusterNodeMonitoringSpec\.Endpoints|ClusterPodMonitoringSpec\.Endpoints|ClusterTargetLabels\.FromPod|ExportFilters\.MatchOneOf|MonitoringStatus\.Conditions|OAuth2\.Scopes|OperatorConfig\.Exports|PodMonitoringSpec\.Endpoints|PodMonitoringStatus\.EndpointStatuses|RelabelingRule\.SourceLabels|RuleGroup\.Rules|RulesSpec\.Groups|SampleGroup\.SampleTargets|ScrapeEndpoint\.MetricRelabeling|ScrapeEndpointStatus\.SampleGroups|ScrapeNodeEndpoint\.MetricRelabeling|TargetLabels\.FromPod)\b'
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  uniq-by-line: false
