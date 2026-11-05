@@ -88,6 +88,8 @@ conform:
 lint:
 	@echo ">> linting code"
 	go tool -modfile="tools/go.mod" golangci-lint run --verbose --timeout 5m
+	@echo ">> linting Kubernetes API types"
+	go tool -modfile="tools/go.mod" golangci-lint-kube-api-linter run -c .golangci-kal.yml --verbose --timeout 5m ./$(API_DIR)/...
 
 $(GOCMDS):   ## Build go binary from cmd/ (e.g. 'operator').
              ## The following env variables configure the build, and are mutually exclusive:
