@@ -61,6 +61,8 @@ jobs:
           version: v2.15.0
           skip-cache: true
           args: --timeout=5m --verbose
+      - name: kube-api-linter
+        run: go tool -modfile="tools/go.mod" golangci-lint-kube-api-linter run -c .golangci-kal.yml --verbose --timeout 5m ./pkg/operator/apis/...
   validate:
     runs-on: ubuntu-latest
     permissions:
