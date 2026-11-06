@@ -1,45 +1,52 @@
 # Frontend
 
-> NOTE: Consider using [datasource-syncer](../datasource-syncer) for Grafana integration.
+> [!NOTE]
+> Consider using [datasource-syncer](../datasource-syncer/README.md) for direct Grafana integration with Google Cloud Monitoring without running an in-cluster proxy.
 
-The frontend binary is a thin query frontend for Google Cloud Managed Service
-for Prometheus (GMP) that looks and feels like a regular Prometheus server.
-It primarily serves as a target URL for a Prometheus datasource in Grafana
-and to access GMP via the well-known Prometheus UI.
+The `frontend` binary is an authenticating reverse proxy and query UI for Google Cloud Managed Service for Prometheus (GMP) that exposes a Prometheus-compatible HTTP API.
+It primarily serves as a target URL for a Prometheus data source in Grafana (or other Prometheus API consumers) and hosts a subset of the upstream Prometheus web UI at `/graph`.
 
-Currently, the following API endpoints are supported:
+Currently, the following read-only Prometheus HTTP API endpoints are supported:
 
-* `api/v1/query`
-* `api/v1/query_range`
-* `api/v1/label/__name__/values`
-* `api/v1/rules`
-* `api/v1/alerts`
+* `/api/v1/query` (`GET`, `POST`)
+* `/api/v1/query_range` (`GET`, `POST`)
+* `/api/v1/series` (`GET`, `POST`)
+* `/api/v1/labels` (`GET`, `POST`)
+* `/api/v1/label/{name}/values` (`GET`)
+* `/api/v1/metadata` (`GET`)
+* `/api/v1/rules` (`GET` — fan-out proxy to `--rules.target-urls`)
+* `/api/v1/alerts` (`GET` — fan-out proxy to `--rules.target-urls`)
 
-## Spinup
+Administrative and scrape-target endpoints (`/api/v1/targets`, `/api/v1/status/*`, `/api/v1/admin/*`) are not supported.
 
-The frontend authenticates to GMP with credentials (typically a service account) and re-exposes
-the JSON/HTTP API unauthenticated (or for use with a custom authentication mechanism).
+## Running Locally
 
-A frontend instance serves read traffic for a single Google Cloud Monitoring workspace, identified
-by the project.
+The `frontend` binary authenticates outbound requests to GMP using Google Cloud credentials (typically a service account key or Application Default Credentials) and serves the Prometheus HTTP API and UI locally.
+
+Each `frontend` instance queries a single Google Cloud Monitoring scoping project (`--query.project-id`).
 
 ```bash
 PROJECT_ID=$(gcloud config get-value core/project)
-# Default gcloud credentials. Substitute for service account key in production.
-CREDENTIALS=$HOME/.config/gcloud/application_default_credentials.json
+# Default gcloud credentials. Substitute a service account key in production.
+CREDENTIALS="$HOME/.config/gcloud/application_default_credentials.json"
 ```
 
-For example, from this directory:
+From the **repository root**, run `./cmd/frontend` with `-tags builtinassets` so the embedded Prometheus UI assets (`pkg/ui/embed/static`) are compiled into the binary:
 
 ```bash
-bash ../../pkg/ui/build.sh # If you want to use UI.
-go run main.go \
+# Optional: rebuild embedded UI assets if you modified third_party/prometheus_ui/override/
+./pkg/ui/build.sh
+
+go run -tags builtinassets ./cmd/frontend \
   --web.listen-address=:19090 \
-  --query.credentials-file=$CREDENTIALS \
-  --query.project-id=$PROJECT_ID
+  --query.credentials-file="$CREDENTIALS" \
+  --query.project-id="$PROJECT_ID"
 ```
 
-Access the frontend UI in your browser at http://localhost:19090.
+> [!NOTE]
+> Omitting `-tags builtinassets` selects `pkg/ui/assets_local.go`, which expects a `./static/` directory in the current working directory.
+> Also note that the binary defaults `--web.listen-address` to `:19090` (`http://localhost:19090/graph`), whereas the sample Kubernetes Deployment in [`examples/frontend.yaml`](../../examples/frontend.yaml) passes `--web.listen-address=:9090`.
+> When `--web.external-url` is provided, any port component on that URL is stripped automatically when constructing redirect and asset links.
 
 ## Flags
 
@@ -63,16 +70,16 @@ Usage of frontend:
 
 ## Docker
 
-You can also build a docker image from source using `make frontend`.
+You can build the `gmp/frontend` Docker image from source from the repository root using:
+
+```bash
+make frontend
+```
 
 ## Authentication
 
-The frontend supports incoming authentication using basic auth by providing a
-username and password on the incoming request. These are validated against the
-`AUTH_USERNAME` and `AUTH_PASSWORD` environment variables, which must be set
-on the frontend pod.
+The `frontend` binary supports incoming HTTP Basic Authentication when both the `AUTH_USERNAME` and `AUTH_PASSWORD` environment variables are set on the `frontend` process or pod.
 
 ## UI Development
 
-Refer to [pkg/ui](/pkg/ui/README.md) for more information on how to develop or
-update UI.
+Refer to [`pkg/ui/README.md`](../../pkg/ui/README.md) for instructions on updating, building, and testing the embedded Prometheus UI.
