@@ -849,7 +849,7 @@ spec:
           readOnlyRootFilesystem: true
       containers:
       - name: alertmanager
-        image: gke.gcr.io/prometheus-engine/alertmanager:v0.27.0-gmp.10-gke.0
+        image: gke.gcr.io/prometheus-engine/alertmanager:v0.27.0-gmp.11-gke.0
         args:
         - --config.file=/alertmanager/config_out/config.yaml
         - --storage.path=/alertmanager-data
