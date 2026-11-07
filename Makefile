@@ -85,11 +85,17 @@ conform:
 	docker run --rm -v ${PWD}:/src -w /src ghcr.io/siderolabs/conform:v0.1.0-alpha.27 enforce
 
 .PHONY: lint
-lint:
+lint: lint-go lint-api
+
+.PHONY: lint-go
+lint-go:
 	@echo ">> linting code"
 	go tool -modfile="tools/go.mod" golangci-lint run --verbose --timeout 5m
+
+.PHONY: lint-api
+lint-api:
 	@echo ">> linting Kubernetes API types"
-	go tool -modfile="tools/go.mod" golangci-lint-kube-api-linter run -c .golangci-kal.yml --verbose --timeout 5m ./$(API_DIR)/...
+	go tool -modfile="tools/go.mod" golangci-lint-kube-api-linter run -c .golangci-kal.yml --verbose ./$(API_DIR)/...
 
 $(GOCMDS):   ## Build go binary from cmd/ (e.g. 'operator').
              ## The following env variables configure the build, and are mutually exclusive:
