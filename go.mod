@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	cloud.google.com/go/compute/metadata v0.10.0
-	cloud.google.com/go/monitoring v1.32.0
+	cloud.google.com/go/monitoring v1.32.1
 	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/efficientgo/e2e v0.14.1-0.20260204162810-8c75b1e33ef9
 	github.com/go-kit/log v0.2.1
@@ -26,7 +26,7 @@ require (
 	go.yaml.in/yaml/v4 v4.0.0-rc.6
 	golang.org/x/mod v0.42.0
 	golang.org/x/oauth2 v0.37.0
-	google.golang.org/api v0.309.0
+	google.golang.org/api v0.310.0
 	google.golang.org/grpc v1.85.0
 	google.golang.org/protobuf v1.36.12
 	k8s.io/api v0.37.1
@@ -118,8 +118,8 @@ require (
 	github.com/google/s2a-go v0.1.11 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.23 // indirect
-	github.com/googleapis/gax-go/v2 v2.26.2 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.24 // indirect
+	github.com/googleapis/gax-go/v2 v2.27.0 // indirect
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/grafana/regexp v0.0.0-20250905093917-f7b3be9d1853 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 // indirect
@@ -218,8 +218,8 @@ require (
 	golang.org/x/time v0.16.0 // indirect
 	golang.org/x/tools v0.51.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
-	google.golang.org/genproto v0.0.0-20260715232425-e75dac1f907d // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260928230214-8a89bd6388cc // indirect
+	google.golang.org/genproto v0.0.0-20261012220534-4341edf3f941 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20261012220534-4341edf3f941 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20261019180522-ce908d29299b // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
