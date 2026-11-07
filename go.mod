@@ -23,7 +23,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/thanos-io/thanos v0.42.5
 	go.uber.org/zap v1.28.0
-	go.yaml.in/yaml/v4 v4.0.0-rc.6
+	go.yaml.in/yaml/v4 v4.0.0-rc.7
 	golang.org/x/mod v0.42.0
 	golang.org/x/oauth2 v0.37.0
 	google.golang.org/api v0.310.0
