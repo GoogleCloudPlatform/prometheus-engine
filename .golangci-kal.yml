@@ -34,12 +34,20 @@ linters:
               - arrayofstruct
               - defaultorrequired
               - defaults
+              - duplicatemarkers
+              - jsontags
               - nodurations
-              - nonpointerstructs
+              - nofloats
+              - nonullable
+              - nophase
+              - noreferences
+              - notimestamp
               - optionalfields
               - optionalorrequired
               - requiredfields
               - ssatags
+              - statussubresource
+              - uniquemarkers
           lintersConfig:
             defaults:
               preferredDefaultMarker: kubebuilder:default
