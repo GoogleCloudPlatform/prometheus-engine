@@ -89,10 +89,6 @@ linters:
       - path: '^pkg/operator/apis/monitoring/v1/'
         linters:
           - kubeapilinter
-        text: '^nonpointerstructs: (?:(?:embedded )?field )?(ClusterNodeMonitoring\.Spec|ClusterPodMonitoring\.Spec|ClusterRules\.Spec|CollectionSpec\.Filter|GlobalRules\.Spec|OperatorConfig\.Collection|OperatorConfig\.Features|OperatorConfig\.Rules|OperatorConfig\.Scaling|OperatorFeatures\.Config|OperatorFeatures\.TargetStatus|PodMonitoring\.Spec|RuleEvaluatorSpec\.Alerting|Rules\.Spec|ScalingSpec\.VPA)\b'
-      - path: '^pkg/operator/apis/monitoring/v1/'
-        linters:
-          - kubeapilinter
         text: '^optionalfields: (?:(?:embedded )?field )?(Auth\.Type|BasicAuth\.Username|ClusterNodeMonitoring\.Status|ClusterNodeTLS\.InsecureSkipVerify|ClusterPodMonitoring\.Status|ClusterPodMonitoringSpec\.TargetLabels|ClusterRules\.Status|ClusterTargetLabels\.Metadata|GlobalRules\.Status|MonitoringCondition\.LastTransitionTime|MonitoringCondition\.LastUpdateTime|MonitoringCondition\.Message|MonitoringCondition\.Reason|MonitoringStatus\.ObservedGeneration|OAuth2\.ClientID|OAuth2\.TokenURL|PodMonitoring\.Status|PodMonitoringSpec\.TargetLabels|ProxyConfig\.ProxyURL|Rules\.Status|SecretKeySelector\.Namespace|TLS\.InsecureSkipVerify|TLS\.ServerName|TargetLabels\.Metadata)\b'
       - path: '^pkg/operator/apis/monitoring/v1/'
         linters:
