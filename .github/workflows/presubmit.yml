@@ -38,7 +38,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: siderolabs/conform@cfdb3cce90daece912e6a5cb3f20b2316a78a5bf # v0.1.0-alpha.31
+      - uses: siderolabs/conform@57c5cc3cabc0c9219d69673cfa8faa49c2db76fb # v0.1.0-alpha.32
         name: Conform Action
   validate:
     runs-on: ubuntu-latest
