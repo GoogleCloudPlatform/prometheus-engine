@@ -69,7 +69,7 @@ CI enforces a clean working tree after running code generation and formatting (`
 
 ## 3. Go Coding & Linting Rules (`make lint`)
 
-Code is checked with `golangci-lint` (`make lint`) using [`.golangci.yml`](./.golangci.yml) (`default: all`).
+Code is checked with `golangci-lint` (`make lint-go`) using [`.golangci.yml`](./.golangci.yml) (`default: all`), and Kubernetes API types under `pkg/operator/apis/` are also checked with `kube-api-linter` (`make lint-api`) via [`.golangci-kal.yml`](./.golangci-kal.yml) (`make lint` runs both).
 
 1. **Mandatory Import Aliases (`importas`)**:
    Unaliased imports of the following packages fail `golangci-lint`:
