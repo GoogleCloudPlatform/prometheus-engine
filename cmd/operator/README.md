@@ -46,7 +46,7 @@ kubectl apply -f manifests/operator.yaml
 
 ```bash
 kubectl -n gmp-system scale deploy/gmp-operator --replicas=0
-kubectl delete validatingwebhookconfiguration gmp-operator.gmp-system.monitoring.coreos.com --ignore-not-found
+kubectl delete validatingwebhookconfiguration gmp-operator.gmp-system.monitoring.googleapis.com --ignore-not-found
 ```
 
 3. Run the operator locally from the repository root:
@@ -56,6 +56,7 @@ go run ./cmd/operator \
   --project-id=test-proj \
   --cluster=test-cluster \
   --location=us-central1-a \
+  --cert-dir="$(mktemp -d)" \
   --kubeconfig="$HOME/.kube/config"
 ```
 
@@ -71,9 +72,9 @@ Open `http://localhost:19090/targets` in your browser to inspect active scrape t
 
 ## Namespace & Secret RBAC Boundaries
 
-* **`gmp-public` (`--public-namespace`)**: Holds the singleton `OperatorConfig` named `config` and any Secrets referenced directly by `OperatorConfig` (such as `collection.credentials`, `rules.credentials`, or Alertmanager auth Secrets). The operator mirrors those Secrets into `gmp-system`.
-* **`gmp-system` (`--operator-namespace`)**: Holds operator-managed workloads (`collector` DaemonSet, `rule-evaluator` Deployment) and generated configuration Secrets/ConfigMaps (`collection`, `rules-generated`).
-* **Secrets referenced by `PodMonitoring` / `ClusterPodMonitoring`**: Secrets used for scrape endpoint TLS, BasicAuth, Bearer tokens, or OAuth2 must reside in the same namespace as the `PodMonitoring` resource (or in `gmp-system` for cluster-scoped `ClusterPodMonitoring` / `ClusterNodeMonitoring`). Because the collector reads these Secrets via the Kubernetes API, you must grant `get` permission on `secrets` in that namespace to `ServiceAccount` `gmp-system:collector` via a `Role` and `RoleBinding`.
+* **`gmp-public` (`--public-namespace`)**: Holds the singleton `OperatorConfig` named `config` and any Secrets referenced directly by `OperatorConfig` (such as `collection.credentials`, `rules.credentials`, `managedAlertmanager.configSecret`, or Alertmanager auth Secrets). The operator mirrors those Secrets into `gmp-system`.
+* **`gmp-system` (`--operator-namespace`)**: Holds operator-managed workloads (`collector` DaemonSet, `rule-evaluator` Deployment, `alertmanager` StatefulSet), generated configuration ConfigMaps (`collector`, `rule-evaluator`, `rules-generated`), and mirrored Secrets (`collection`, `rules`, `alertmanager`).
+* **Secrets referenced by `PodMonitoring` / `ClusterPodMonitoring`**: Secrets used for scrape endpoint TLS, BasicAuth, Bearer tokens, or OAuth2 must reside in the same namespace as the `PodMonitoring` resource (for `ClusterPodMonitoring`, `secret.namespace` can target any namespace and defaults to `default` when omitted). Because the collector watches and reads these Secrets via the Kubernetes API, you must grant `get`, `list`, and `watch` permissions on `secrets` in that namespace to `ServiceAccount` `collector` (in namespace `gmp-system`) via a `Role` and `RoleBinding`.
 
 ## Flags
 

@@ -4,37 +4,38 @@ This package implements the reconciliation loops, admission webhooks, and Custom
 
 ## Package Architecture
 
-`Operator.Run()` in [`operator.go`](operator.go) registers four controllers with `controller-runtime`:
+`Operator.Run()` in [`operator.go`](operator.go) registers up to five controllers with `controller-runtime`:
 
-| Controller Name    | Source Files                                                                                       | Watched Primary Resources                                                           | Managed Outputs                                                                                                                                                                                   |
-|:-------------------|:---------------------------------------------------------------------------------------------------|:------------------------------------------------------------------------------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `operator-config`  | [`operator_config.go`](operator_config.go)                                                         | `OperatorConfig` (`gmp-public/config`)                                              | Reconciles the `collector` DaemonSet and `rule-evaluator` Deployment in `gmp-system`, and mirrors referenced Secrets (`collection`, `rules`, `alertmanager`) from `gmp-public` into `gmp-system`. |
-| `collector-config` | [`collection.go`](collection.go), [`splitting.go`](splitting.go)                                   | `PodMonitoring`, `ClusterPodMonitoring`, `ClusterNodeMonitoring`, `OperatorConfig`  | Validates scrape endpoints, generates gzipped Prometheus configuration in `Secret/gmp-system/collection`, and updates CRD status conditions.                                                      |
-| `rules`            | [`rules.go`](rules.go), [`apis/monitoring/v1/rules_config.go`](apis/monitoring/v1/rules_config.go) | `Rules`, `ClusterRules`, `GlobalRules`                                              | Injects scope labels (`project_id`, `location`, `cluster`, `namespace`) into PromQL expressions and writes generated rule files to `ConfigMap/gmp-system/rules-generated`.                        |
-| `target-status`    | [`endpoint_status.go`](endpoint_status.go)                                                         | `PodMonitoring`, `ClusterPodMonitoring`, `ClusterNodeMonitoring` + `collector` Pods | Polls `/api/v1/targets` on ready collector pods and populates `status.endpointStatuses` on the corresponding monitoring CRDs.                                                                     |
+| Controller Name    | Source Files                                                                                             | Watched Resources / Trigger                                                         | Managed Outputs                                                                                                                                                                                                  |
+|:-------------------|:---------------------------------------------------------------------------------------------------------|:------------------------------------------------------------------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `collector-config` | [`collection.go`](collection.go), [`apis/monitoring/v1/pod_config.go`](apis/monitoring/v1/pod_config.go) | `OperatorConfig`, `PodMonitoring`, `ClusterPodMonitoring`, `ClusterNodeMonitoring`  | Mirrors `collection.credentials` to `Secret/gmp-system/collection`, generates Prometheus config in `ConfigMap/gmp-system/collector` (optionally gzipped), and updates monitoring CRD status conditions.          |
+| `rules`            | [`rules.go`](rules.go), [`apis/monitoring/v1/rules_config.go`](apis/monitoring/v1/rules_config.go)       | `OperatorConfig`, `Rules`, `ClusterRules`, `GlobalRules`                            | Injects scope labels into `Rules`/`ClusterRules` PromQL expressions, writes rule files to `ConfigMap/gmp-system/rules-generated`, updates status conditions, and scales `rule-evaluator` and `alertmanager` (0/1). |
+| `operator-config`  | [`operator_config.go`](operator_config.go)                                                               | `OperatorConfig` (`gmp-public/config`), `gmp-public` Secrets                        | Defaults `OperatorConfig`, generates `ConfigMap/gmp-system/rule-evaluator`, and mirrors `rules` and `alertmanager` Secrets from `gmp-public` into `gmp-system`.                                                  |
+| `scaling`          | [`scaling.go`](scaling.go) *(only registered when VPA CRD is installed)*                                 | `OperatorConfig` (`gmp-public/config`), owned `VerticalPodAutoscaler`s              | Creates or deletes `VerticalPodAutoscaler` resources for `alertmanager`, `collector`, `gmp-operator`, and `rule-evaluator` in `gmp-system` based on `scaling.vpa.enabled`.                                       |
+| `target-status`    | [`target_status.go`](target_status.go), [`endpoint_status_builder.go`](endpoint_status_builder.go)       | Periodic 10s channel timer (when `features.targetStatus.enabled` is `true`)         | Polls `/api/v1/targets` on `collector` pods and populates `status.endpointStatuses` on `PodMonitoring` and `ClusterPodMonitoring` CRDs.                                                                          |
 
 ## Code Generation
 
 > [!IMPORTANT]
-> Never manually edit generated files under `charts/operator/crds/`, `manifests/`, `doc/api.md`, `pkg/operator/generated/`, or `pkg/operator/apis/monitoring/v1/zz_generated.deepcopy.go`. CI enforces a clean working tree via `CHECK=1 make regen`.
+> Never manually edit generated files under `charts/operator/crds/`, `manifests/`, `doc/api.md`, or `pkg/operator/apis/monitoring/v1/zz_generated.deepcopy.go`. CI enforces a clean working tree via `CHECK=1 make regen`.
 
 When modifying Go API types under [`pkg/operator/apis/monitoring/v1/`](apis/monitoring/v1/), run the following two steps from the repository root:
 
-1. **Regenerate CRD YAMLs, Helm manifests, API documentation, and formatting**:
+1. **Regenerate Go `DeepCopy` methods (when structs or fields change)**:
+
+```bash
+CODEGEN_PKG="$(go list -modfile=tools/go.mod -m -f '{{.Dir}}' k8s.io/code-generator)" ./hack/presubmit.sh codegen
+```
+
+This runs `kube::codegen::gen_helpers` to update `pkg/operator/apis/monitoring/v1/zz_generated.deepcopy.go`.
+
+2. **Regenerate CRD YAMLs, Helm manifests, API documentation, and formatting**:
 
 ```bash
 make regen
 ```
 
-This executes [`./hack/presubmit.sh`](../../hack/presubmit.sh) (`crdgen`, `manifests`, `docgen`, and `format`), updating `charts/operator/crds/*.yaml`, `manifests/setup.yaml`, `manifests/operator.yaml`, `manifests/rule-evaluator.yaml`, and `doc/api.md`.
-
-2. **Regenerate Go `DeepCopy` methods and typed client-go code (when structs or fields change)**:
-
-```bash
-./hack/presubmit.sh codegen
-```
-
-This runs `kube::codegen::gen_helpers` to update `pkg/operator/apis/monitoring/v1/zz_generated.deepcopy.go` and `pkg/operator/generated/`.
+This executes [`./hack/presubmit.sh`](../../hack/presubmit.sh) (`format`, `crdgen`, `manifests`, and `docgen`) and `addlicense`, updating `charts/operator/crds/*.yaml`, `manifests/setup.yaml`, `manifests/operator.yaml`, `manifests/rule-evaluator.yaml`, `cmd/datasource-syncer/datasource-syncer.yaml`, and `doc/api.md`.
 
 ## Testing
 
@@ -56,11 +57,10 @@ make e2e
 TEST_RUN=TestCollectorPodMonitoring make e2e-only
 ```
 
-To run the `e2e/` suite directly against an existing Kubernetes cluster (such as GKE) where `manifests/setup.yaml` has been applied and in-cluster validating webhooks are not blocking local operator execution:
+To run a single `setupCluster`-based `e2e/` test directly against a clean Kubernetes cluster (with GKE Managed Service for Prometheus disabled and no `gmp-*` CRDs or namespaces pre-installed):
 
 ```bash
-kubectl apply -f manifests/setup.yaml
-go test ./e2e/ \
+go test ./e2e/ -run '^TestCollectorPodMonitoring$' \
   -args -project-id="$PROJECT_ID" -cluster="$CLUSTER_NAME" -location="$LOCATION" -skip-gcm
 ```
 
