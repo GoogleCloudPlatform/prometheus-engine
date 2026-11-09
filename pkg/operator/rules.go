@@ -18,15 +18,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hash/fnv"
-	"strings"
-	"unicode/utf8"
 
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv1 "k8s.io/api/autoscaling/v1"
 	corev1 "k8s.io/api/core/v1"
-	eventsv1 "k8s.io/api/events/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -41,9 +37,6 @@ import (
 const (
 	nameRulesGenerated    = "rules-generated"
 	reasonRuleConfigError = "RuleConfigError"
-	reportingController   = "monitoring.googleapis.com/gmp-operator"
-	maxEventNoteLength    = 1024
-	maxEventObjNameLength = 140
 )
 
 func setupRulesControllers(op *Operator) error {
@@ -364,110 +357,9 @@ func (r *rulesReconciler) ensureRuleConfigs(ctx context.Context, projectID, loca
 			continue
 		}
 		if u.ruleErr != nil {
-			r.recordInvalidRuleEvents(ctx, u.obj, u.kind, now, u.ruleErr)
+			recordWarningEvents(ctx, r.client, r.opts.OperatorNamespace, u.obj, u.kind, reasonRuleConfigError, now, u.ruleErr)
 		}
 	}
 
 	return errors.Join(errs...)
-}
-
-// recordInvalidRuleEvents emits Kubernetes Warning Events when a Rules, ClusterRules, or GlobalRules
-// resource fails operator-side validation. An event is always emitted in the operator namespace with
-// regarding set to Deployment/gmp-operator so that it surfaces in the Google Cloud Console workload
-// events tab. For namespaced Rules resources, a second event is emitted in the resource's namespace
-// with regarding set directly to the Rules object.
-func (r *rulesReconciler) recordInvalidRuleEvents(ctx context.Context, obj monitoringv1.MonitoringCRD, kind string, now metav1.Time, ruleErr error) {
-	logger, _ := logr.FromContext(ctx)
-
-	opNamespace := r.opts.OperatorNamespace
-	if opNamespace == "" {
-		opNamespace = DefaultOperatorNamespace
-	}
-
-	eventTime := metav1.NewMicroTime(now.Time)
-	objRef := corev1.ObjectReference{
-		APIVersion: monitoringv1.SchemeGroupVersion.String(),
-		Kind:       kind,
-		Namespace:  obj.GetNamespace(),
-		Name:       obj.GetName(),
-		UID:        obj.GetUID(),
-	}
-
-	objName := truncateEventObjName(obj.GetName())
-	workloadEventName := fmt.Sprintf("%s.%s.%s.%x", NameOperator, strings.ToLower(kind), objName, now.UnixNano())
-	workloadNote := fmt.Sprintf("%s %s: %s", kind, obj.GetName(), ruleErr.Error())
-	if obj.GetNamespace() != "" {
-		workloadEventName = fmt.Sprintf("%s.%s.%s.%s.%x", NameOperator, strings.ToLower(kind), obj.GetNamespace(), objName, now.UnixNano())
-		workloadNote = fmt.Sprintf("%s %s/%s: %s", kind, obj.GetNamespace(), obj.GetName(), ruleErr.Error())
-	}
-
-	workloadEvent := &eventsv1.Event{
-		Name:                workloadEventName,
-		Namespace:           opNamespace,
-		EventTime:           eventTime,
-		ReportingController: reportingController,
-		ReportingInstance:   NameOperator,
-		Action:              "Ignored",
-		Reason:              reasonRuleConfigError,
-		Note:                truncateEventNote(workloadNote),
-		Type:                corev1.EventTypeWarning,
-		Regarding: corev1.ObjectReference{
-			APIVersion: appsv1.SchemeGroupVersion.String(),
-			Kind:       "Deployment",
-			Namespace:  opNamespace,
-			Name:       NameOperator,
-		},
-		Related: &objRef,
-	}
-	if err := r.client.Create(ctx, workloadEvent); err != nil && !apierrors.IsAlreadyExists(err) {
-		logger.Error(err, "create operator workload event for invalid rules", "kind", kind, "namespace", obj.GetNamespace(), "name", obj.GetName())
-	}
-
-	if kind == "Rules" {
-		resourceEvent := &eventsv1.Event{
-			Name:                fmt.Sprintf("rules.%s.%x", objName, now.UnixNano()),
-			Namespace:           obj.GetNamespace(),
-			EventTime:           eventTime,
-			ReportingController: reportingController,
-			ReportingInstance:   NameOperator,
-			Action:              "Ignored",
-			Reason:              reasonRuleConfigError,
-			Note:                truncateEventNote(ruleErr.Error()),
-			Type:                corev1.EventTypeWarning,
-			Regarding:           objRef,
-		}
-		if err := r.client.Create(ctx, resourceEvent); err != nil && !apierrors.IsAlreadyExists(err) {
-			logger.Error(err, "create resource event for invalid rules", "namespace", obj.GetNamespace(), "name", obj.GetName())
-		}
-	}
-}
-
-// truncateEventNote caps an event note to maxEventNoteLength bytes without splitting
-// a multi-byte UTF-8 rune at the cut boundary.
-func truncateEventNote(note string) string {
-	if len(note) <= maxEventNoteLength {
-		return note
-	}
-	cut := maxEventNoteLength - 3
-	for cut > 0 && !utf8.RuneStart(note[cut]) {
-		cut--
-	}
-	return note[:cut] + "..."
-}
-
-// truncateEventObjName caps a resource name so generated Kubernetes Event names stay
-// within the 253-character DNS subdomain limit and end on an alphanumeric character.
-// When truncating, an 8-character FNV-1a hex digest suffix is appended so distinct long
-// names that share a common prefix do not collide.
-func truncateEventObjName(name string) string {
-	if len(name) <= maxEventObjNameLength {
-		return name
-	}
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(name))
-	prefix := strings.TrimRight(name[:maxEventObjNameLength-9], "-.")
-	if prefix == "" {
-		return fmt.Sprintf("%08x", h.Sum32())
-	}
-	return fmt.Sprintf("%s-%08x", prefix, h.Sum32())
 }
