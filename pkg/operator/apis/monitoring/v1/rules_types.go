@@ -26,6 +26,7 @@ import (
 //
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:validation:XValidation:rule="!has(self.spec) || !has(self.spec.groups) || self.spec.groups.all(g, !has(g.rules) || g.rules.all(r, !has(r.labels) || (!('project_id' in r.labels) && !('location' in r.labels) && !('cluster' in r.labels) && !('namespace' in r.labels))))",message="Rule labels cannot contain reserved keys: project_id, location, cluster, namespace"
@@ -62,6 +63,7 @@ type RulesList struct {
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
@@ -98,6 +100,7 @@ type ClusterRulesList struct {
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion

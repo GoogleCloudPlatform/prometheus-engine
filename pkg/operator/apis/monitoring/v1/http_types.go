@@ -194,7 +194,6 @@ type TLS struct {
 
 	// CA uses the secret as the CA certificate to validate the server with.
 	// +optional
-
 	CA *SecretSelector `json:"ca,omitempty"`
 	// Cert uses the secret as the certificate for client authentication to the server.
 	// +optional
