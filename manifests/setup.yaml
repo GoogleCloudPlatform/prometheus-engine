@@ -72,7 +72,7 @@ spec:
                         description: |-
                           Relabeling rules for metrics scraped from this endpoint. Relabeling rules that
                           override protected target labels (project_id, location, cluster, namespace, job,
-                          instance, or __address__) are not permitted. The labelmap action is not permitted
+                          instance, or `__address__`) are not permitted. The labelmap action is not permitted
                           in general.
                         items:
                           description: RelabelingRule defines a single Prometheus
@@ -444,7 +444,7 @@ spec:
                         description: |-
                           Relabeling rules for metrics scraped from this endpoint. Relabeling rules that
                           override protected target labels (project_id, location, cluster, namespace, job,
-                          instance, top_level_controller, top_level_controller_type, or __address__) are
+                          instance, top_level_controller, top_level_controller_type, or `__address__`) are
                           not permitted. The labelmap action is not permitted in general.
                         items:
                           description: RelabelingRule defines a single Prometheus
@@ -572,9 +572,8 @@ spec:
                             description: TLS configures the token request's TLS settings.
                             properties:
                               ca:
-                                description: |-
-                                  SecretSelector references a secret from a secret provider e.g. Kubernetes Secret. Only one
-                                  provider can be used at a time.
+                                description: CA uses the secret as the CA certificate
+                                  to validate the server with.
                                 properties:
                                   secret:
                                     description: Secret represents reference to a
@@ -743,9 +742,8 @@ spec:
                         description: TLS configures the scrape request's TLS settings.
                         properties:
                           ca:
-                            description: |-
-                              SecretSelector references a secret from a secret provider e.g. Kubernetes Secret. Only one
-                              provider can be used at a time.
+                            description: CA uses the secret as the CA certificate
+                              to validate the server with.
                             properties:
                               secret:
                                 description: Secret represents reference to a given
@@ -3117,7 +3115,7 @@ spec:
                         description: |-
                           Relabeling rules for metrics scraped from this endpoint. Relabeling rules that
                           override protected target labels (project_id, location, cluster, namespace, job,
-                          instance, top_level_controller, top_level_controller_type, or __address__) are
+                          instance, top_level_controller, top_level_controller_type, or `__address__`) are
                           not permitted. The labelmap action is not permitted in general.
                         items:
                           description: RelabelingRule defines a single Prometheus
@@ -3245,9 +3243,8 @@ spec:
                             description: TLS configures the token request's TLS settings.
                             properties:
                               ca:
-                                description: |-
-                                  SecretSelector references a secret from a secret provider e.g. Kubernetes Secret. Only one
-                                  provider can be used at a time.
+                                description: CA uses the secret as the CA certificate
+                                  to validate the server with.
                                 properties:
                                   secret:
                                     description: Secret represents reference to a
@@ -3416,9 +3413,8 @@ spec:
                         description: TLS configures the scrape request's TLS settings.
                         properties:
                           ca:
-                            description: |-
-                              SecretSelector references a secret from a secret provider e.g. Kubernetes Secret. Only one
-                              provider can be used at a time.
+                            description: CA uses the secret as the CA certificate
+                              to validate the server with.
                             properties:
                               secret:
                                 description: Secret represents reference to a given

@@ -45,6 +45,7 @@ type PodMonitoringCRD interface {
 // within the PodMonitoring's namespace.
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:validation:XValidation:rule="self.spec.endpoints.all(e, !has(e.authorization) || !has(e.authorization.credentials) || !has(e.authorization.credentials.secret) || !has(e.authorization.credentials.secret.__namespace__))",message="Namespace not allowed on PodMonitoring secret references.",reason="FieldValueForbidden"
@@ -99,6 +100,7 @@ type PodMonitoringList struct {
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
@@ -242,7 +244,7 @@ type ScrapeEndpoint struct {
 	Timeout string `json:"timeout,omitempty"`
 	// Relabeling rules for metrics scraped from this endpoint. Relabeling rules that
 	// override protected target labels (project_id, location, cluster, namespace, job,
-	// instance, top_level_controller, top_level_controller_type, or __address__) are
+	// instance, top_level_controller, top_level_controller_type, or `__address__`) are
 	// not permitted. The labelmap action is not permitted in general.
 	// +kubebuilder:validation:MaxItems=250
 	MetricRelabeling []RelabelingRule `json:"metricRelabeling,omitempty"`

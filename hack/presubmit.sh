@@ -107,11 +107,12 @@ update_crdgen() {
 update_docgen() {
 	echo ">>> generating API documentation"
 	mkdir -p doc
-	go tool -modfile="${REPO_ROOT}/tools/go.mod" gen-crd-api-reference-docs \
-		-config "./hack/gen-crd/config.json" \
-		-template-dir "./hack/gen-crd" \
-		-api-dir "./pkg/operator/apis/monitoring/v1" \
-		-out-file "./doc/api.md"
+	go tool -modfile="${REPO_ROOT}/tools/go.mod" crd-ref-docs \
+		--config "./hack/gen-crd/config.yaml" \
+		--templates-dir "./hack/gen-crd" \
+		--renderer "markdown" \
+		--source-path "./pkg/operator/apis/monitoring/v1" \
+		--output-path "./doc/api.md"
 }
 
 update_manifests() {

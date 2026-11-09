@@ -49,7 +49,7 @@ type ScrapeNodeEndpoint struct {
 	Timeout string `json:"timeout,omitempty"`
 	// Relabeling rules for metrics scraped from this endpoint. Relabeling rules that
 	// override protected target labels (project_id, location, cluster, namespace, job,
-	// instance, or __address__) are not permitted. The labelmap action is not permitted
+	// instance, or `__address__`) are not permitted. The labelmap action is not permitted
 	// in general.
 	// +kubebuilder:validation:MaxItems=250
 	MetricRelabeling []RelabelingRule `json:"metricRelabeling,omitempty"`
@@ -90,6 +90,7 @@ type ClusterNodeMonitoringList struct {
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion

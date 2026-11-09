@@ -3,7 +3,7 @@
 This example shows how to allow list certain metrics for a given metric target.
 
 For this we will use `PodMonitoring` (also available for `ClusterPodMonitoring` and `ClusterNodeMonitoring` CRDs)
-[`spec.endpoints[*].metricRelabeling`](../../../doc/api.md#monitoring.googleapis.com/v1.ScrapeEndpoint) field, which
+[`spec.endpoints[*].metricRelabeling`](../../../doc/api.md#scrapeendpoint) field, which
 directly maps to [Prometheus `metric_relabel_config` field](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#:~:text=metric%20relabel%20configurations.-,metric_relabel_configs,-%3A%0A%20%20%5B%20%2D%20%3Crelabel_config).
 
 This kind of filtering allows "allow-listing" (`keep` action) or "deny-listing" (`drop` action) on
