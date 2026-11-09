@@ -16,6 +16,7 @@ package operator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"path"
@@ -38,7 +39,9 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/clock"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -166,7 +169,7 @@ func setupOperatorConfigControllers(op *Operator) error {
 			&corev1.Secret{},
 			enqueueConst(objRequest),
 			builder.WithPredicates(objFilterAlertManagerSecret)).
-		Complete(newOperatorConfigReconciler(op.manager.GetClient(), op.opts))
+		Complete(newOperatorConfigReconciler(op.manager.GetClient(), op.opts, op.vpaAvailable))
 	if err != nil {
 		return fmt.Errorf("operator-config controller: %w", err)
 	}
@@ -183,17 +186,28 @@ func secretFilter(ns string) func(object client.Object) bool {
 	}
 }
 
+const reasonVPANotAvailable = "VPANotAvailable"
+
 // operatorConfigReconciler reconciles the OperatorConfig CRD.
 type operatorConfigReconciler struct {
-	client client.Client
-	opts   Options
+	client       client.Client
+	opts         Options
+	vpaAvailable bool
+	clock        clock.Clock
+
+	// vpaWarnedUID and vpaWarnedGen identify the OperatorConfig generation for which
+	// the VPANotAvailable warning was last emitted, so it is emitted once per change.
+	vpaWarnedUID types.UID
+	vpaWarnedGen int64
 }
 
 // newOperatorConfigReconciler creates a new operatorConfigReconciler.
-func newOperatorConfigReconciler(c client.Client, opts Options) *operatorConfigReconciler {
+func newOperatorConfigReconciler(c client.Client, opts Options, vpaAvailable bool) *operatorConfigReconciler {
 	return &operatorConfigReconciler{
-		client: c,
-		opts:   opts,
+		client:       c,
+		opts:         opts,
+		vpaAvailable: vpaAvailable,
+		clock:        clock.RealClock{},
 	}
 }
 
@@ -206,6 +220,8 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 	if err != nil {
 		return reconcile.Result{}, err
 	}
+
+	r.warnVPAUnavailable(ctx, config)
 
 	// Ensure the rule-evaluator config and grab any to-be-mirrored
 	// secret data on the way.
@@ -235,6 +251,25 @@ func (r *operatorConfigReconciler) Reconcile(ctx context.Context, req reconcile.
 	}
 
 	return reconcile.Result{}, nil
+}
+
+// warnVPAUnavailable logs an error and emits Warning Events once per OperatorConfig
+// generation when scaling.vpa.enabled is set but vertical pod autoscaling is unavailable.
+// The remaining OperatorConfig fields are reconciled regardless.
+func (r *operatorConfigReconciler) warnVPAUnavailable(ctx context.Context, config *monitoringv1.OperatorConfig) {
+	if !config.Scaling.VPA.Enabled || r.vpaAvailable {
+		return
+	}
+	if r.vpaWarnedUID == config.UID && r.vpaWarnedGen == config.Generation {
+		return
+	}
+	r.vpaWarnedUID = config.UID
+	r.vpaWarnedGen = config.Generation
+
+	vpaErr := errors.New("vertical pod autoscaling is not available - install vpa support and restart the operator")
+	logger, _ := logr.FromContext(ctx)
+	logger.Error(vpaErr, "cannot configure vertical pod autoscaling")
+	recordWarningEvents(ctx, r.client, r.opts.OperatorNamespace, config, "OperatorConfig", reasonVPANotAvailable, metav1.NewTime(r.clock.Now()), vpaErr)
 }
 
 // ensureOperatorConfig returns either the defaulted user-defined OperatorConfig, or if it
