@@ -25,3 +25,13 @@ spec:
   endpoints:
   - port: metrics
     interval: 30s
+  # Optional: Transfer pod labels or control metadata labels on scraped targets.
+  # See examples/configuration/target-labels for detailed examples.
+  # targetLabels:
+  #   fromPod:
+  #   - from: app
+  #   - from: app.kubernetes.io/name
+  #     to: app_name
+  #   metadata:
+  #   - pod
+  #   - container
