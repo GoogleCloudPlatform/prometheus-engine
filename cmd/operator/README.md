@@ -42,11 +42,10 @@ kubectl apply -f manifests/setup.yaml
 kubectl apply -f manifests/operator.yaml
 ```
 
-2. Scale down the in-cluster `gmp-operator` Deployment so it does not compete with your local process, and remove the validating webhook configuration (unless you configure local webhook TLS certificates and network routing from the API server):
+2. Scale down the in-cluster `gmp-operator` Deployment so it does not compete with your local process:
 
 ```bash
 kubectl -n gmp-system scale deploy/gmp-operator --replicas=0
-kubectl delete validatingwebhookconfiguration gmp-operator.gmp-system.monitoring.googleapis.com --ignore-not-found
 ```
 
 3. Run the operator locally from the repository root:
@@ -56,7 +55,6 @@ go run ./cmd/operator \
   --project-id=test-proj \
   --cluster=test-cluster \
   --location=us-central1-a \
-  --cert-dir="$(mktemp -d)" \
   --kubeconfig="$HOME/.kube/config"
 ```
 
@@ -81,9 +79,9 @@ Open `http://localhost:19090/targets` in your browser to inspect active scrape t
 ```bash mdox-exec="bash hack/format_help.sh operator"
 Usage of operator:
   -ca-cert-base64 string
-    	The base64-encoded certificate authority.
+    	Deprecated: no-op. The operator no longer serves admission webhooks.
   -cert-dir string
-    	The directory which contains TLS certificates for webhook server. (default "/etc/tls/private")
+    	Deprecated: no-op. The operator no longer serves admission webhooks. (default "/etc/tls/private")
   -cleanup-unless-annotation-key string
     	Clean up operator-managed workloads without the provided annotation key.
   -cluster string
@@ -103,13 +101,13 @@ Usage of operator:
   -public-namespace string
     	Namespace in which the operator reads user-provided resources. (default "gmp-public")
   -tls-cert-base64 string
-    	The base64-encoded TLS certificate.
+    	Deprecated: no-op. The operator no longer serves admission webhooks.
   -tls-key-base64 string
-    	The base64-encoded TLS key.
+    	Deprecated: no-op. The operator no longer serves admission webhooks.
   -v int
     	Logging verbosity
   -webhook-addr string
-    	Address to listen to for incoming kube admission webhook connections. (default ":10250")
+    	Deprecated: no-op. The operator no longer serves admission webhooks. (default ":10250")
 ```
 
 ## Teardown

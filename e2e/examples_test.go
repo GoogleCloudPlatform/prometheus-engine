@@ -85,8 +85,8 @@ func TestInjectGMPSidecarExample(t *testing.T) {
 		})
 	}()
 
-	// The script reads the external labels from the collector configuration. The operator
-	// only adds them after defaulting the OperatorConfig, which can happen after it's ready.
+	// The script reads the external labels from the collector configuration, which
+	// is created asynchronously once the operator reconciles the collector ConfigMap.
 	if err := wait.PollUntilContextCancel(ctx, 2*time.Second, true, func(ctx context.Context) (bool, error) {
 		cm := &corev1.ConfigMap{}
 		if getErr := kubeClient.Get(ctx, client.ObjectKey{Name: operator.NameCollector, Namespace: operator.DefaultOperatorNamespace}, cm); getErr != nil {

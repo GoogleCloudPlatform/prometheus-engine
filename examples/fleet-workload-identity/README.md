@@ -58,7 +58,7 @@ kubectl kustomize examples/fleet-workload-identity \
   | kubectl apply --server-side -f -
 ```
 
-Then configure scraping with `PodMonitoring` resources as usual. If creating monitoring resources right after installing fails with a webhook certificate error, wait a few seconds for the operator to finish starting and retry.
+Then configure scraping with `PodMonitoring` resources as usual.
 
 To verify, deploy the example app and its `PodMonitoring`, and check that the collector is ready:
 

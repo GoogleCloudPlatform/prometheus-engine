@@ -16,17 +16,84 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/GoogleCloudPlatform/prometheus-engine/e2e/deploy"
 	"github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator"
+	arv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+// TestLegacyWebhookCleanup validates that the operator deletes legacy and
+// chart-installed webhook configurations on startup using its webhook-admin RBAC,
+// while leaving unrelated webhook configurations untouched.
+func TestLegacyWebhookCleanup(t *testing.T) {
+	ctx := contextWithDeadline(t)
+	kubeClient, _, err := setupCluster(ctx, t)
+	if err != nil {
+		t.Fatalf("error instantiating clients. err: %s", err)
+	}
+
+	webhookConfigName := fmt.Sprintf("%s.%s.monitoring.googleapis.com", operator.NameOperator, operator.DefaultOperatorNamespace)
+	legacyConfigs := []client.Object{
+		&arv1.ValidatingWebhookConfiguration{Name: "gmp-operator"},
+		&arv1.ValidatingWebhookConfiguration{Name: webhookConfigName},
+		&arv1.MutatingWebhookConfiguration{Name: webhookConfigName},
+	}
+	unrelated := &arv1.ValidatingWebhookConfiguration{Name: "unrelated-webhook-config"}
+
+	for _, obj := range append(legacyConfigs, unrelated) {
+		if err := kubeClient.Create(ctx, obj.DeepCopyObject().(client.Object)); err != nil {
+			t.Fatalf("create %T %q: %s", obj, obj.GetName(), err)
+		}
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer cancel()
+		if err := kubeClient.Delete(cleanupCtx, unrelated.DeepCopy()); err != nil && !apierrors.IsNotFound(err) {
+			t.Errorf("cleanup unrelated webhook configuration: %s", err)
+		}
+	})
+
+	t.Log("restarting operator to trigger startup cleanup")
+	if err := deploymentRestart(ctx, kubeClient, operator.DefaultOperatorNamespace, operator.NameOperator); err != nil {
+		t.Fatalf("error restarting operator. err: %s", err)
+	}
+
+	t.Log("waiting for operator to be deployed")
+	if err := deploy.WaitForOperatorReady(ctx, kubeClient); err != nil {
+		t.Fatalf("error waiting for operator deployment to be ready: %s", err)
+	}
+
+	t.Log("waiting for legacy webhook configurations to be deleted")
+	if err := wait.PollUntilContextCancel(ctx, pollDuration, true, func(ctx context.Context) (bool, error) {
+		for _, obj := range legacyConfigs {
+			got := obj.DeepCopyObject().(client.Object)
+			err := kubeClient.Get(ctx, client.ObjectKeyFromObject(obj), got)
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			if err != nil {
+				return false, fmt.Errorf("get %T %q: %w", obj, obj.GetName(), err)
+			}
+			return false, nil
+		}
+		return true, nil
+	}); err != nil {
+		t.Fatalf("legacy webhook configurations were not deleted: %s", err)
+	}
+
+	if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(unrelated), &arv1.ValidatingWebhookConfiguration{}); err != nil {
+		t.Fatalf("unrelated webhook configuration should not be deleted: %s", err)
+	}
+}
 
 // TestWebhooksNoRBAC validates that the operator works without any webhook RBAC policies.
 func TestWebhooksNoRBAC(t *testing.T) {
@@ -66,7 +133,7 @@ func TestWebhooksNoRBAC(t *testing.T) {
 		}
 
 		t.Log("waiting for operator logs to contain RBAC message")
-		return strings.Contains(logs, "delete legacy ValidatingWebHookConfiguration was not allowed"), nil
+		return strings.Contains(logs, "delete legacy webhook configuration was not allowed"), nil
 	}); err != nil {
 		t.Fatalf("unable to check operator logs: %s", err)
 	}

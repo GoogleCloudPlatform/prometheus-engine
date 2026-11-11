@@ -111,7 +111,8 @@ func TestCollectionReconcile(t *testing.T) {
 			Interval: "10s",
 		},
 	}
-	expectedCollectorConfigMapWithoutScrapeConfig := "global:\n    metric_name_validation_scheme: legacy\n    metric_name_escaping_scheme: underscores\n"
+	// The external labels are defaulted in memory from the operator options.
+	expectedCollectorConfigMapWithoutScrapeConfig := "global:\n    external_labels:\n        cluster: test-cluster\n        location: test-loc\n        project_id: test-proj\n    metric_name_validation_scheme: legacy\n    metric_name_escaping_scheme: underscores\n"
 	testCases := []struct {
 		desc                       string
 		input                      monitoringv1.MonitoringCRD
@@ -478,6 +479,56 @@ func TestCollectionReconcile(t *testing.T) {
 				t.Fatalf("unexpected update (-want, +got): %s", diff)
 			}
 		})
+	}
+}
+
+func TestCollectionReconcileWithoutOperatorConfig(t *testing.T) {
+	logger := testr.New(t)
+	ctx := logr.NewContext(t.Context(), logger)
+	opts := Options{
+		ProjectID: "test-proj",
+		Location:  "test-loc",
+		Cluster:   "test-cluster",
+	}
+	if err := opts.defaultAndValidate(logger); err != nil {
+		t.Fatal("Invalid options:", err)
+	}
+
+	kubeClient := newFakeClientBuilder().
+		WithObjects(&appsv1.DaemonSet{
+			Name:      NameCollector,
+			Namespace: opts.OperatorNamespace,
+			Spec: appsv1.DaemonSetSpec{
+				Selector: &metav1.LabelSelector{},
+				Template: corev1.PodTemplateSpec{
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{{
+							Name: "prometheus",
+						}},
+					},
+				},
+			},
+		}).
+		Build()
+
+	collectionReconciler := newCollectionReconciler(kubeClient, opts)
+	if _, err := collectionReconciler.Reconcile(ctx, reconcile.Request{
+		Namespace: opts.PublicNamespace,
+		Name:      NameOperatorConfig,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	collectorConfigMap := &corev1.ConfigMap{
+		Namespace: opts.OperatorNamespace,
+		Name:      NameCollector,
+	}
+	if err := kubeClient.Get(ctx, client.ObjectKeyFromObject(collectorConfigMap), collectorConfigMap); err != nil {
+		t.Fatal(err)
+	}
+	want := "global:\n    external_labels:\n        cluster: test-cluster\n        location: test-loc\n        project_id: test-proj\n    metric_name_validation_scheme: legacy\n    metric_name_escaping_scheme: underscores\n"
+	if diff := cmp.Diff(want, collectorConfigMap.Data["config.yaml"]); diff != "" {
+		t.Fatalf("unexpected collector configmap (-want, +got): %s", diff)
 	}
 }
 

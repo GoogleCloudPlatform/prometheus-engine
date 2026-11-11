@@ -1,6 +1,6 @@
 # Operator Package (`pkg/operator`)
 
-This package implements the reconciliation loops, admission webhooks, and Custom Resource Definition (CRD) types (`monitoring.googleapis.com/v1`) used by [`cmd/operator`](../../cmd/operator/README.md).
+This package implements the reconciliation loops and Custom Resource Definition (CRD) types (`monitoring.googleapis.com/v1`) used by [`cmd/operator`](../../cmd/operator/README.md).
 
 ## Package Architecture
 
