@@ -78,11 +78,6 @@ resources:
       cpu: 1m
       memory: 16M
 deployOperator: true
-tls:
-  base64:
-    ca: null
-    cert: null
-    key: null
 collector:
   rbac:
     create: true

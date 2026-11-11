@@ -171,21 +171,14 @@ metadata:
     {{- include "prometheus-engine.labels" . | nindent 4 }}
   {{- end }}
 rules:
-# Permission to inject CA bundles into webhook configs of fixed name.
+# Permission to delete webhook configs installed by previous versions. The
+# operator no longer serves admission webhooks.
 - resources:
   - validatingwebhookconfigurations
   - mutatingwebhookconfigurations
   apiGroups: ["admissionregistration.k8s.io"]
   resourceNames:
   - gmp-operator.gmp-system.monitoring.googleapis.com
-  verbs: ["get", "patch", "update", "watch"]
-# Permission to delete legacy webhook config the operator directly created
-# in previous versions.
-- resources:
-  - validatingwebhookconfigurations
-  - mutatingwebhookconfigurations
-  apiGroups: ["admissionregistration.k8s.io"]
-  resourceNames:
   - gmp-operator
   verbs: ["delete"]
 {{- end -}}

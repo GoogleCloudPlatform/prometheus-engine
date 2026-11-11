@@ -72,14 +72,10 @@ permissions the operator needs):
 go run main.go
 ```
 
-Finally because the webhooks are configured to the operator apply the rest of
-the configurations in a separate terminal session:
+Finally apply the rest of the configurations in a separate terminal session:
 
 ```bash
-kubectl apply -f deploy/operator/06-service.yaml
 kubectl apply -f deploy/operator/07-operatorconfig.yaml
-kubectl apply -f deploy/operator/08-validatingwebhookconfiguration.yaml
-kubectl apply -f deploy/operator/09-mutatingwebhookconfiguration.yaml
 kubectl apply -f deploy/operator/10-collector.yaml
 kubectl apply -f deploy/operator/11-rule-evaluator.yaml
 ```
@@ -101,9 +97,9 @@ Go to `http://localhost:19090/targets`.
 ```bash mdox-exec="bash hack/format_help.sh operator"
 Usage of operator:
   -ca-cert-base64 string
-    	The base64-encoded certificate authority.
+    	Deprecated: no-op. The operator no longer serves admission webhooks.
   -cert-dir string
-    	The directory which contains TLS certificates for webhook server. (default "/etc/tls/private")
+    	Deprecated: no-op. The operator no longer serves admission webhooks. (default "/etc/tls/private")
   -cleanup-unless-annotation-key string
     	Clean up operator-managed workloads without the provided annotation key.
   -cluster string
@@ -123,13 +119,13 @@ Usage of operator:
   -public-namespace string
     	Namespace in which the operator reads user-provided resources. (default "gmp-public")
   -tls-cert-base64 string
-    	The base64-encoded TLS certificate.
+    	Deprecated: no-op. The operator no longer serves admission webhooks.
   -tls-key-base64 string
-    	The base64-encoded TLS key.
+    	Deprecated: no-op. The operator no longer serves admission webhooks.
   -v int
     	Logging verbosity
   -webhook-addr string
-    	Address to listen to for incoming kube admission webhook connections. (default ":10250")
+    	Deprecated: no-op. The operator no longer serves admission webhooks. (default ":10250")
 ```
 
 ## Teardown

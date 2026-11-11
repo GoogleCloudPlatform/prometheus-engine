@@ -165,6 +165,15 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		logger.Info("no operatorconfig created yet")
 	} else if err != nil {
 		return reconcile.Result{}, fmt.Errorf("get operatorconfig for incoming: %q: %w", req.String(), err)
+	} else {
+		// Default in memory so the collector config does not depend on the
+		// operator-config controller having persisted the defaults yet.
+		defaulter := &operatorConfigDefaulter{
+			projectID: r.opts.ProjectID,
+			location:  r.opts.Location,
+			cluster:   r.opts.Cluster,
+		}
+		defaulter.update(&config)
 	}
 
 	if err := r.ensureCollectorSecrets(ctx, &config.Collection); err != nil {

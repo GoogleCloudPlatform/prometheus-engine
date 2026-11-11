@@ -15,7 +15,6 @@
 processor:
   ignoreTypes:
     - ".*List$"
-    - "OperatorConfigValidator$"
     - "MonitoringCRD$"
     - "PodMonitoringCRD$"
     - "PrometheusSecretConfigs$"

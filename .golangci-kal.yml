@@ -68,8 +68,6 @@ linters:
       - '_test\.go$'
       # Legacy deprecated v1alpha1 API types are frozen for backwards compatibility.
       - '^pkg/operator/apis/monitoring/v1alpha1/'
-      # Internal admission webhook helper structs, not CRD API types.
-      - '^pkg/operator/apis/monitoring/v1/operator_admission\.go$'
     rules:
       # Preexisting v1 CRD fields that predate kube-api-linter adoption.
       # Scoped to exact Type.Field identifiers so all newly added types and

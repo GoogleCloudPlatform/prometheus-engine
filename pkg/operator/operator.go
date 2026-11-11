@@ -19,9 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
-	"strconv"
 
 	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/api"
@@ -43,10 +41,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	monitoringv1 "github.com/GoogleCloudPlatform/prometheus-engine/pkg/operator/apis/monitoring/v1"
 )
@@ -113,16 +111,6 @@ type Options struct {
 	PublicNamespace string
 	// Health and readiness serving address.
 	ProbeAddr string
-	// Certificate of the server in base 64.
-	TLSCert string
-	// Key of the server in base 64.
-	TLSKey string
-	// Certificate authority in base 64.
-	CACert string
-	// CertDir is the path to a directory containing TLS certificates for the webhook server.
-	CertDir string
-	// Webhook serving address.
-	ListenAddr string
 	// Cleanup resources without this annotation.
 	CleanupAnnotKey string
 	// The number of upper bound threads to use for target polling otherwise
@@ -189,15 +177,6 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 	sc, err := NewScheme()
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize Kubernetes scheme: %w", err)
-	}
-
-	host, portStr, err := net.SplitHostPort(opts.ListenAddr)
-	if err != nil {
-		return nil, fmt.Errorf("invalid listen address: %w", err)
-	}
-	port, err := strconv.Atoi(portStr)
-	if err != nil {
-		return nil, fmt.Errorf("invalid port: %w", err)
 	}
 
 	watchObjects := map[client.Object]cache.ByObject{
@@ -282,11 +261,6 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 	manager, err := ctrl.NewManager(clientConfig, manager.Options{
 		Logger: logger,
 		Scheme: sc,
-		WebhookServer: webhook.NewServer(webhook.Options{
-			Host:    host,
-			Port:    port,
-			CertDir: opts.CertDir,
-		}),
 		// Don't run a metrics server with the manager. Metrics are being served.
 		// explicitly in the main routine.
 		Metrics: metricsserver.Options{
@@ -308,12 +282,11 @@ func New(logger logr.Logger, clientConfig *rest.Config, opts Options) (*Operator
 		return nil, fmt.Errorf("create controller manager: %w", err)
 	}
 
-	webhookChecker := manager.GetWebhookServer().StartedChecker()
-	if err := manager.AddHealthzCheck("webhooks", webhookChecker); err != nil {
-		return nil, fmt.Errorf("add healthz check for webhooks: %w", err)
+	if err := manager.AddHealthzCheck("ping", healthz.Ping); err != nil {
+		return nil, fmt.Errorf("add healthz check: %w", err)
 	}
-	if err := manager.AddReadyzCheck("webhooks", webhookChecker); err != nil {
-		return nil, fmt.Errorf("add readyz check for webhooks: %w", err)
+	if err := manager.AddReadyzCheck("ping", healthz.Ping); err != nil {
+		return nil, fmt.Errorf("add readyz check: %w", err)
 	}
 
 	client, err := client.New(clientConfig, client.Options{Scheme: sc})
@@ -354,9 +327,6 @@ func (o *Operator) Run(ctx context.Context, registry prometheus.Registerer) erro
 	if err := o.cleanupOldResources(ctx); err != nil {
 		return fmt.Errorf("cleanup old resources: %w", err)
 	}
-	if err := setupAdmissionWebhooks(ctx, o.logger, o.client, o.manager.GetWebhookServer().(*webhook.DefaultServer), &o.opts, o.vpaAvailable); err != nil {
-		return fmt.Errorf("init admission resources: %w", err)
-	}
 	if err := setupCollectionControllers(o); err != nil {
 		return fmt.Errorf("setup collection controllers: %w", err)
 	}
@@ -380,19 +350,24 @@ func (o *Operator) Run(ctx context.Context, registry prometheus.Registerer) erro
 }
 
 func (o *Operator) cleanupOldResources(ctx context.Context) error {
-	// Delete old ValidatingWebhookConfiguration that was installed directly by the operator.
-	// in previous versions.
-	validatingWebhookConfig := arv1.ValidatingWebhookConfiguration{
-		Name: "gmp-operator",
-	}
-	if err := o.client.Delete(ctx, &validatingWebhookConfig); err != nil {
-		switch {
-		case apierrors.IsForbidden(err):
-			o.logger.Info("delete legacy ValidatingWebHookConfiguration was not allowed. Please remove it manually")
-		case !apierrors.IsNotFound(err):
-			return fmt.Errorf("delete legacy ValidatingWebHookConfiguration failed: %w", err)
-		default:
-			// Noop.
+	// Delete webhook configurations installed by previous versions, which served
+	// admission webhooks. The operator no longer serves them, so leaving them in
+	// place would block or fail requests for the resources they cover.
+	webhookConfigName := fmt.Sprintf("%s.%s.monitoring.googleapis.com", NameOperator, o.opts.OperatorNamespace)
+	for _, obj := range []client.Object{
+		&arv1.ValidatingWebhookConfiguration{Name: "gmp-operator"},
+		&arv1.ValidatingWebhookConfiguration{Name: webhookConfigName},
+		&arv1.MutatingWebhookConfiguration{Name: webhookConfigName},
+	} {
+		if err := o.client.Delete(ctx, obj); err != nil {
+			switch {
+			case apierrors.IsForbidden(err):
+				o.logger.Info("delete legacy webhook configuration was not allowed. Please remove it manually", "name", obj.GetName())
+			case !apierrors.IsNotFound(err):
+				return fmt.Errorf("delete legacy webhook configuration %q failed: %w", obj.GetName(), err)
+			default:
+				// Noop.
+			}
 		}
 	}
 

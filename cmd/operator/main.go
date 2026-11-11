@@ -101,12 +101,14 @@ func main() {
 		publicNamespace = flag.String("public-namespace", operator.DefaultPublicNamespace,
 			"Namespace in which the operator reads user-provided resources.")
 
-		tlsCert     = flag.String("tls-cert-base64", "", "The base64-encoded TLS certificate.")
-		tlsKey      = flag.String("tls-key-base64", "", "The base64-encoded TLS key.")
-		caCert      = flag.String("ca-cert-base64", "", "The base64-encoded certificate authority.")
-		certDir     = flag.String("cert-dir", defaultTLSDir, "The directory which contains TLS certificates for webhook server.")
-		webhookAddr = flag.String("webhook-addr", ":10250",
-			"Address to listen to for incoming kube admission webhook connections.")
+		// The operator no longer serves admission webhooks. These flags are accepted
+		// and ignored so that existing manifests keep working during upgrades.
+		_ = flag.String("tls-cert-base64", "", "Deprecated: no-op. The operator no longer serves admission webhooks.")
+		_ = flag.String("tls-key-base64", "", "Deprecated: no-op. The operator no longer serves admission webhooks.")
+		_ = flag.String("ca-cert-base64", "", "Deprecated: no-op. The operator no longer serves admission webhooks.")
+		_ = flag.String("cert-dir", defaultTLSDir, "Deprecated: no-op. The operator no longer serves admission webhooks.")
+		_ = flag.String("webhook-addr", ":10250", "Deprecated: no-op. The operator no longer serves admission webhooks.")
+
 		probeAddr   = flag.String("probe-addr", ":18081", "Address to outputs probe statuses (e.g. /readyz and /healthz)")
 		metricsAddr = flag.String("metrics-addr", ":18080", "Address to emit metrics on.")
 
@@ -144,11 +146,6 @@ func main() {
 		OperatorNamespace: *operatorNamespace,
 		PublicNamespace:   *publicNamespace,
 		ProbeAddr:         *probeAddr,
-		TLSCert:           *tlsCert,
-		TLSKey:            *tlsKey,
-		CACert:            *caCert,
-		CertDir:           *certDir,
-		ListenAddr:        *webhookAddr,
 		CleanupAnnotKey:   *cleanupAnnotKey,
 	})
 	if err != nil {
