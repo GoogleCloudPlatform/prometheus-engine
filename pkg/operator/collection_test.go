@@ -111,7 +111,8 @@ func TestCollectionReconcile(t *testing.T) {
 			Interval: "10s",
 		},
 	}
-	expectedCollectorConfigMapWithoutScrapeConfig := "global:\n    metric_name_validation_scheme: legacy\n    metric_name_escaping_scheme: underscores\n"
+	// The external labels are defaulted in memory from the operator options.
+	expectedCollectorConfigMapWithoutScrapeConfig := "global:\n    external_labels:\n        cluster: test-cluster\n        location: test-loc\n        project_id: test-proj\n    metric_name_validation_scheme: legacy\n    metric_name_escaping_scheme: underscores\n"
 	testCases := []struct {
 		desc                       string
 		input                      monitoringv1.MonitoringCRD

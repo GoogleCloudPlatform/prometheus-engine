@@ -15,9 +15,11 @@
 package operator
 
 import (
+	"context"
 	"errors"
 	"testing"
 
+	arv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
@@ -29,6 +31,7 @@ import (
 	"github.com/go-logr/logr/testr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 )
 
 func TestIsVPAAvailable(t *testing.T) {
@@ -234,4 +237,76 @@ func TestCleanupOldResources(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCleanupOldResourcesWebhookConfigs(t *testing.T) {
+	const webhookConfigName = "gmp-operator.gmp-system.monitoring.googleapis.com"
+	opts := Options{
+		ProjectID:         "test-proj",
+		Location:          "test-loc",
+		Cluster:           "test-cluster",
+		OperatorNamespace: "gmp-system",
+	}
+	// unrelated must survive cleanup.
+	unrelated := &arv1.ValidatingWebhookConfiguration{Name: "unrelated"}
+	webhookConfigs := func() []client.Object {
+		return []client.Object{
+			&arv1.ValidatingWebhookConfiguration{Name: "gmp-operator"},
+			&arv1.ValidatingWebhookConfiguration{Name: webhookConfigName},
+			&arv1.MutatingWebhookConfiguration{Name: webhookConfigName},
+		}
+	}
+
+	t.Run("deletes webhook configurations from previous versions", func(t *testing.T) {
+		cl := fake.NewClientBuilder().WithObjects(webhookConfigs()...).WithObjects(unrelated.DeepCopy()).Build()
+		op := &Operator{logger: testr.New(t), opts: opts, client: cl}
+		if err := op.cleanupOldResources(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		for _, obj := range webhookConfigs() {
+			if err := cl.Get(t.Context(), client.ObjectKeyFromObject(obj), obj); !apierrors.IsNotFound(err) {
+				t.Errorf("%T %q should be deleted, got err: %v", obj, obj.GetName(), err)
+			}
+		}
+		if err := cl.Get(t.Context(), client.ObjectKeyFromObject(unrelated), &arv1.ValidatingWebhookConfiguration{}); err != nil {
+			t.Errorf("unrelated webhook configuration should be kept: %v", err)
+		}
+	})
+
+	t.Run("succeeds when no webhook configurations exist", func(t *testing.T) {
+		op := &Operator{logger: testr.New(t), opts: opts, client: fake.NewClientBuilder().Build()}
+		if err := op.cleanupOldResources(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("tolerates forbidden deletes", func(t *testing.T) {
+		attempts := 0
+		cl := fake.NewClientBuilder().WithObjects(webhookConfigs()...).WithInterceptorFuncs(interceptor.Funcs{
+			Delete: func(_ context.Context, _ client.WithWatch, obj client.Object, _ ...client.DeleteOption) error {
+				attempts++
+				return apierrors.NewForbidden(schema.GroupResource{Group: arv1.GroupName, Resource: "webhookconfigurations"}, obj.GetName(), errors.New("forbidden"))
+			},
+		}).Build()
+		op := &Operator{logger: testr.New(t), opts: opts, client: cl}
+		if err := op.cleanupOldResources(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		// Every configuration is attempted even though earlier ones were forbidden.
+		if attempts != 3 {
+			t.Errorf("expected 3 delete attempts, got %d", attempts)
+		}
+	})
+
+	t.Run("fails on other delete errors", func(t *testing.T) {
+		cl := fake.NewClientBuilder().WithInterceptorFuncs(interceptor.Funcs{
+			Delete: func(context.Context, client.WithWatch, client.Object, ...client.DeleteOption) error {
+				return errors.New("boom")
+			},
+		}).Build()
+		op := &Operator{logger: testr.New(t), opts: opts, client: cl}
+		if err := op.cleanupOldResources(t.Context()); err == nil {
+			t.Fatal("expected error")
+		}
+	})
 }

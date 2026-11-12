@@ -42,21 +42,7 @@ spec:
         args:
         - "--operator-namespace={{.Values.namespace.system}}"
         - "--public-namespace={{.Values.namespace.public}}"
-        - "--webhook-addr=:10250"
-        {{- if .Values.tls.base64.ca }}
-        - "--tls-ca-cert-base64={{.Values.tls.base64.ca}}"
-        {{- end }}
-        {{- if .Values.tls.base64.cert }}
-        - "--tls-cert-base64={{.Values.tls.base64.cert}}"
-        {{- end }}
-        {{- if .Values.tls.base64.key }}
-        - "--tls-key-base64={{.Values.tls.base64.key}}"
-        {{- end}}
         ports:
-        - name: web
-          # Note this should match the --listen-addr flag passed in to the operator args.
-          # Default is 10250.
-          containerPort: 10250
         - name: metrics
           # Note this should match the --metrics-addr flag passed in to the operator args.
           # Default is 18080.
@@ -92,9 +78,6 @@ spec:
             port: 18081
             scheme: HTTP
           periodSeconds: 10
-        volumeMounts:
-        - name: certs
-          mountPath: /etc/tls/private
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -126,7 +109,4 @@ spec:
         runAsUser: 1000
         seccompProfile:
           type: RuntimeDefault
-      volumes:
-      - name: certs
-        emptyDir: {}
 {{- end }}

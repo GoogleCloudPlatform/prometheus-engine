@@ -28,7 +28,7 @@ go test ./<package_path>/... -run <TestNamePattern>
 ```
 * **Example**:
   ```bash
-  go test ./pkg/operator/... -run TestWebhook
+  go test ./pkg/operator/... -run TestCleanupOldResources
   ```
 
 ### Option 4: Run GCM Script Tests

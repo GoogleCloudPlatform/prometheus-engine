@@ -1579,3 +1579,14 @@ func FuzzRulesStructured(f *testing.F) {
 		}
 	})
 }
+
+func isDurationValidationDiscrepancy(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "not a valid duration string") ||
+		strings.Contains(msg, "empty duration string") ||
+		strings.Contains(msg, "unknown unit") ||
+		strings.Contains(msg, "duration out of range")
+}

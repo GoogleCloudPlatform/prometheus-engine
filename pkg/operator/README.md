@@ -22,13 +22,7 @@ kubectl apply -f ../../cmd/operator/deploy/operator/00-namespace.yaml
 kubectl apply -f ../../cmd/operator/deploy/operator/01-priority-class.yaml
 ```
 
-The operator itself is run locally within the test suite. Thus, make sure the blocking
-webhooks are not currently enabled:
-
-```bash
-kubectl delete -f ../../cmd/operator/deploy/operator/08-validatingwebhookconfiguration.yaml
-kubectl delete -f ../../cmd/operator/deploy/operator/09-mutatingwebhookconfiguration.yaml
-```
+The operator itself is run locally within the test suite.
 
 The tests verify the metric data written into GCM, for which information about the
 GKE cluster must be provided. Execute the tests with:

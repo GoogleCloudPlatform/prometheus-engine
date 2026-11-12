@@ -33,6 +33,7 @@ import (
 	"github.com/prometheus/prometheus/discovery"
 	discoverykube "github.com/prometheus/prometheus/discovery/kubernetes"
 	"github.com/prometheus/prometheus/discovery/targetgroup"
+	"github.com/prometheus/prometheus/google/export"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/relabel"
 	"go.yaml.in/yaml/v4"
@@ -809,4 +810,57 @@ func pathForSelector(namespace string, scm *monitoringv1.SecretOrConfigMap) stri
 		return fmt.Sprintf("%s_%s_%s_%s", "secret", namespace, scm.Secret.Name, scm.Secret.Key)
 	}
 	return ""
+}
+
+// operatorConfigDefaulter defaults OperatorConfig external labels from the operator options.
+type operatorConfigDefaulter struct {
+	projectID string
+	location  string
+	cluster   string
+}
+
+// update defaults the OperatorConfig, returning true if the OperatorConfig was updated.
+func (d *operatorConfigDefaulter) update(oc *monitoringv1.OperatorConfig) bool {
+	updated := false
+
+	// Upsert projectID, location, and cluster to external labels.
+	// If not present in external labels, use the values passed to the operator.
+	// If present in external labels, this is effectively a no-op.
+	// Do this for both collection and rule-evaluator configuration.
+	var projectID, location, cluster = resolveLabels(d.projectID, d.location, d.cluster, oc.Collection.ExternalLabels)
+	collectionExpected := map[string]string{
+		export.KeyProjectID: projectID,
+		export.KeyLocation:  location,
+		export.KeyCluster:   cluster,
+	}
+	if oc.Collection.ExternalLabels == nil {
+		oc.Collection.ExternalLabels = collectionExpected
+		updated = true
+	} else {
+		for key, val := range collectionExpected {
+			if oc.Collection.ExternalLabels[key] != val {
+				oc.Collection.ExternalLabels[key] = val
+				updated = true
+			}
+		}
+	}
+
+	projectID, location, cluster = resolveLabels(d.projectID, d.location, d.cluster, oc.Rules.ExternalLabels)
+	rulesExpected := map[string]string{
+		export.KeyProjectID: projectID,
+		export.KeyLocation:  location,
+		export.KeyCluster:   cluster,
+	}
+	if oc.Rules.ExternalLabels == nil {
+		oc.Rules.ExternalLabels = rulesExpected
+		updated = true
+	} else {
+		for key, val := range rulesExpected {
+			if oc.Rules.ExternalLabels[key] != val {
+				oc.Rules.ExternalLabels[key] = val
+				updated = true
+			}
+		}
+	}
+	return updated
 }
