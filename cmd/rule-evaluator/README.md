@@ -1,45 +1,61 @@
 # Rule Evaluator
 
-The rule evaluator closely replicates the rule evaluation behavior of the Prometheus server.
+The `rule-evaluator` binary evaluates Prometheus alerting and recording rules against a Prometheus-compatible query API endpoint (typically Google Cloud Managed Service for Prometheus) and writes recording rule results and alert state series (`ALERTS`, `ALERTS_FOR_STATE`) back to Google Cloud Monitoring via the `CreateTimeSeries` API.
 
-Instead of reading and writing from local storage, it evaluates alerting and recording rules
-against a Prometheus compatible query API endpoint (typically Google Cloud Prometheus Engine's API)
-and writes data back to Google Cloud Monitoring via the CreateTimeSeries API.
+## Kubernetes Deployment Modes
 
-## Setup
+In Kubernetes, `rule-evaluator` can be deployed in two ways:
+1. **Operator-managed (`gmp-operator`)**: Configured automatically in the `gmp-system` namespace by `gmp-operator` based on `OperatorConfig/config` in `gmp-public` and `Rules`, `ClusterRules`, and `GlobalRules` Custom Resources (which are compiled into `ConfigMap/gmp-system/rules-generated`). Additional CLI flags can be passed via the `EXTRA_ARGS` environment variable on the container.
+2. **Standalone deployment**: Deployed directly from [`manifests/rule-evaluator.yaml`](../../manifests/rule-evaluator.yaml) when running rule evaluation independently of `gmp-operator`.
 
-For local setup, make sure that the `gcloud` CLI is [setup](https://cloud.google.com/sdk/docs/quickstart).
+On startup, `rule-evaluator` queries historical `ALERTS_FOR_STATE` series from the target query endpoint so pending alerts with `for` durations retain their state across pod restarts.
 
-We use example configuration files and rule files, which work like in a regular Prometheus server.
-For the config file, the rule evaluator considers the `alerting` and `rule_files` section as well as applicable fields of the `global` section.
+## Local Setup & Execution
 
-Consult the Prometheus documentation for details on the [configuration format](https://prometheus.io/docs/prometheus/latest/configuration/configuration) as well as the [alerting](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/) and [recording](https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/) rule file format.
+For local execution against Google Cloud Monitoring, ensure the `gcloud` CLI is [installed and configured](https://cloud.google.com/sdk/docs/quickstart).
 
-### Run
+The `rule-evaluator` reads standard Prometheus configuration files (`global`, `alerting`, and `rule_files` sections) and rule files. Consult the upstream Prometheus documentation for the [configuration format](https://prometheus.io/docs/prometheus/latest/configuration/configuration/), [alerting rules](https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/), and [recording rules](https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/).
+
+### 1. Create a Minimal `config.yaml` and `rules.yaml`
+
+```yaml
+# config.yaml
+global:
+  evaluation_interval: 30s
+rule_files:
+  - rules.yaml
+```
+
+```yaml
+# rules.yaml
+groups:
+  - name: example
+    rules:
+      - record: job:up:sum
+        expr: sum by (job) (up)
+```
+
+### 2. Run Against Google Cloud Monitoring
+
+From the **repository root**:
 
 ```bash
 PROJECT_ID=$(gcloud config get-value core/project)
 ZONE=us-central1-b
-CONFIG_FILE=example/config.yaml
-# Default gcloud credentials. Substitute for service account key in production.
-CREDENTIALS=~/.config/gcloud/application_default_credentials.json
-GCM_TARGET=staging-monitoring.sandbox.googleapis.com:443
+# Default gcloud credentials. Substitute a service account key in production.
+CREDENTIALS="$HOME/.config/gcloud/application_default_credentials.json"
+
+go run ./cmd/rule-evaluator \
+  --export.label.project-id="$PROJECT_ID" \
+  --export.label.location="$ZONE" \
+  --export.label.cluster=local-dev \
+  --export.credentials-file="$CREDENTIALS" \
+  --query.credentials-file="$CREDENTIALS" \
+  --query.project-id="$PROJECT_ID" \
+  --config.file=config.yaml
 ```
 
-```bash
-go run main.go \
-  --export.label.project-id=$PROJECT_ID \
-  --export.label.location=$ZONE \
-  --export.endpoint=$GCM_TARGET \
-  --export.credentials-file=$CREDENTIALS \
-  --query.credentials-file=$CREDENTIALS \
-  --query.project-id=$PROJECT_ID \
-  --config.file=$CONFIG_FILE
-```
-
-After a while recording rule results become visible through Prometheus Engine's query
-API (see [frontend]("../frontend/README.md") for setting up a UI) and firing alerts appear
-in the AlertManager and are routed from there.
+Recording rule results become visible through the Prometheus query API (see [frontend](../frontend/README.md) for setting up a local query UI), and firing alerts are forwarded to configured Alertmanager endpoints.
 
 ## Flags
 
@@ -166,23 +182,17 @@ Flags:
 
 ```
 
-## Development
+## Local Dry-Run Development (Without GCM Credentials)
 
-For development, the rule evaluator can evaluate rule queries against arbitrary other
-endpoints that expose the Prometheus query API. For example, against a locally running
-Prometheus server:
+For local development and testing, `rule-evaluator` can evaluate rule queries against any local Prometheus-compatible HTTP server (such as a port-forwarded collector on `http://localhost:19090`) with authentication and GCM export disabled:
 
 ```bash
-TARGET=http://localhost:19090
-```
-
-```bash
-go run main.go \
-    --export.label.project-id=$PROJECT_ID \
-    --export.label.location=$ZONE \
-    --export.endpoint=$GCM_TARGET \
-    --export.credentials-file=$CREDENTIALS \
-    --query.project-id=$PROJECT_ID \
-    --query.target-url=$TARGET \
-    --config.file=$CONFIG_FILE
+go run ./cmd/rule-evaluator \
+  --export.label.project-id=test-project \
+  --export.label.location=us-central1-b \
+  --export.label.cluster=test-cluster \
+  --export.disable \
+  --query.target-url=http://localhost:19090 \
+  --query.debug.disable-auth \
+  --config.file=config.yaml
 ```
