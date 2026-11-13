@@ -7,7 +7,14 @@ This [Kustomize](https://kustomize.io/) overlay deploys Managed Service for Prom
 
 ## Prerequisites
 
-1. Register the cluster with Workload Identity enabled:
+1. Enable the GKE Hub (for Fleet registration), Security Token Service, and Cloud Monitoring APIs, plus the IAM Service Account Credentials API if you use [service account impersonation](#customization):
+
+   ```bash
+   gcloud services enable gkehub.googleapis.com sts.googleapis.com monitoring.googleapis.com \
+     iamcredentials.googleapis.com --project=PROJECT_ID
+   ```
+
+2. Register the cluster with Workload Identity enabled. GMP only needs the membership's Workload Identity and doesn't use the Connect Agent, so any Workload Identity-enabled membership works. By default, `register` also installs the Connect Agent; `--manifest-output-file` writes the agent manifest to a file instead of deploying it:
 
    ```bash
    gcloud container fleet memberships register MEMBERSHIP_NAME \
@@ -15,10 +22,11 @@ This [Kustomize](https://kustomize.io/) overlay deploys Managed Service for Prom
      --location=global \
      --context=KUBECONTEXT \
      --enable-workload-identity \
-     --has-private-issuer
+     --has-private-issuer \
+     --manifest-output-file=connect-agent.yaml
    ```
 
-2. Grant the collector's Kubernetes service account (also used by the rule-evaluator) permission to write and query metrics:
+3. Grant the collector's Kubernetes service account (also used by the rule-evaluator) permission to write and query metrics:
 
    ```bash
    for role in roles/monitoring.metricWriter roles/monitoring.viewer; do
@@ -37,7 +45,7 @@ kubectl apply --server-side -f https://raw.githubusercontent.com/GoogleCloudPlat
 kubectl wait --for=condition=established --timeout=60s crd/operatorconfigs.monitoring.googleapis.com
 ```
 
-The overlay uses four placeholders. Substitute them when rendering, limiting `envsubst` to these variables so the rest of the manifests are untouched:
+The overlay uses four placeholders. Substitute them when rendering, limiting `envsubst` to these variables so the rest of the manifests are untouched. Run this from a checkout of this repository, or replace `examples/fleet-workload-identity` with the remote reference `'github.com/GoogleCloudPlatform/prometheus-engine//examples/fleet-workload-identity?ref=main&timeout=120s&submodules=false'` (keep the quotes, since some shells, such as `zsh`, treat `?` as a wildcard):
 
 ```bash
 export PROJECT_ID=my-project
@@ -50,7 +58,18 @@ kubectl kustomize examples/fleet-workload-identity \
   | kubectl apply --server-side -f -
 ```
 
-Then configure scraping with `PodMonitoring` resources as usual, for example [`examples/pod-monitoring.yaml`](../pod-monitoring.yaml). If creating monitoring resources right after installing fails with a webhook certificate error, wait a few seconds for the operator to finish starting and retry.
+Then configure scraping with `PodMonitoring` resources as usual. If creating monitoring resources right after installing fails with a webhook certificate error, wait a few seconds for the operator to finish starting and retry.
+
+To verify, deploy the example app and its `PodMonitoring`, and check that the collector is ready:
+
+```bash
+kubectl apply \
+  -f https://raw.githubusercontent.com/GoogleCloudPlatform/prometheus-engine/main/examples/example-app.yaml \
+  -f https://raw.githubusercontent.com/GoogleCloudPlatform/prometheus-engine/main/examples/pod-monitoring.yaml
+kubectl -n gmp-system rollout status ds/collector
+```
+
+After a couple of minutes, query `up{cluster="MEMBERSHIP_NAME"}` in Cloud Monitoring's Metrics Explorer, using the PromQL editor.
 
 ## Customization
 
