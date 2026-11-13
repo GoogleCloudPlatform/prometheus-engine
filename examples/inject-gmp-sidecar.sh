@@ -64,7 +64,7 @@ if [[ -z "${CLUSTER_NAME}" || -z "${LOCATION}" || -z "${PROJECT_ID}" ]]; then
 fi
 
 # Images come from charts/values.global.yaml, so they are updated together with our manifests.
-DISTROLESS_IMAGE=gke.gcr.io/gke-distroless/bash:gke_distroless_20261015.00_p0
+DISTROLESS_IMAGE=gke.gcr.io/gke-distroless/bash:gke_distroless_20261101.00_p0
 PROMETHEUS_IMAGE=gke.gcr.io/prometheus-engine/prometheus:v3.13.0-gmp.4-gke.0@sha256:1c3afd8442cf961b4327e44c9de159e700ea42b2d28f7115e58a45406ed787a0
 CONFIG_RELOADER_IMAGE=gke.gcr.io/prometheus-engine/config-reloader:v0.17.3-gke.0
 
