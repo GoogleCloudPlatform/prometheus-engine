@@ -71,6 +71,6 @@ RUN --mount=type=cache,target=/gocache/build \
 	cmd/config-reloader/*.go
 
 
-FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260928.00_p0@sha256:521379cbafae8f38a3cc396b9abdc569872ff9c4e26e7f6dee7b564b4fd33ab3
+FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20261101.00_p0@sha256:52e1fd9180da347fc8d735c50368872b33d7e9505b09a70a861ebe57940bf0c6
 COPY --from=buildbase /app/config-reloader /bin/config-reloader
 ENTRYPOINT ["/bin/config-reloader"]
