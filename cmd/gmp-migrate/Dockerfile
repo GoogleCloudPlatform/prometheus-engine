@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.27.3@sha256:4d14dcb0974d4d5a608700a6a495e9730813582dadab5ceb4ff4b99d5462f897 AS buildbase
+FROM --platform=$BUILDPLATFORM google-go.pkg.dev/golang:1.27.4@sha256:9ca562ec61672333bbf60fdccc6af039ff9aae1eeffecfc5402954674daadc5e AS buildbase
 ARG TARGETOS
 ARG TARGETARCH
 ARG BUILDARCH
@@ -58,6 +58,6 @@ RUN --mount=type=cache,target=/gocache/mod \
 	cmd/gmp-migrate/*.go
 
 
-FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260928.00_p0@sha256:521379cbafae8f38a3cc396b9abdc569872ff9c4e26e7f6dee7b564b4fd33ab3
+FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20261101.00_p0@sha256:52e1fd9180da347fc8d735c50368872b33d7e9505b09a70a861ebe57940bf0c6
 COPY --from=buildbase /app/gmp-migrate /bin/gmp-migrate
 ENTRYPOINT ["/bin/gmp-migrate"]
