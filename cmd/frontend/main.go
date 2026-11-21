@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -70,6 +71,9 @@ var (
 
 	targetURLStr = flag.String("query.target-url", fmt.Sprintf("https://monitoring.googleapis.com/v1/projects/%s/location/global/prometheus", projectIDVar),
 		fmt.Sprintf("The URL to forward authenticated requests to. (%s is replaced with the --query.project-id flag.)", projectIDVar))
+
+	queryTimeout = flag.Duration("query.timeout", 30*time.Second,
+		"The timeout for queries forwarded to Google Cloud Monitoring.")
 
 	//nolint:revive // Allow insecure http connection
 	ruleEndpointURLStrings = flag.String("rules.target-urls", "http://rule-evaluator.gmp-system.svc.cluster.local:19092", "Comma separated lists of URLs that support HTTP Prometheus Alert and Rules APIs (/api/v1/alerts, /api/v1/rules), e.g. GMP rule-evaluator. NOTE: Results are merged as-is, no sorting and deduplication is done.")
@@ -175,7 +179,7 @@ func main() {
 		http.Handle("/api/v1/rules", authenticate(http.HandlerFunc(ruleProxy.RuleGroups)))
 		http.Handle("/api/v1/rules/", authenticate(http.NotFoundHandler()))
 		http.Handle("/api/v1/alerts", authenticate(http.HandlerFunc(ruleProxy.Alerts)))
-		http.Handle("/api/", authenticate(forward(logger, targetURL, transport)))
+		http.Handle("/api/", authenticate(forward(logger, targetURL, transport, *queryTimeout)))
 
 		http.HandleFunc("/-/healthy", func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
@@ -230,8 +234,11 @@ func authenticate(next http.Handler) http.Handler {
 	})
 }
 
-func forward(logger *slog.Logger, target *url.URL, transport http.RoundTripper) http.Handler {
-	client := http.Client{Transport: transport}
+func forward(logger *slog.Logger, target *url.URL, transport http.RoundTripper, timeout time.Duration) http.Handler {
+	client := http.Client{
+		Transport: transport,
+		Timeout:   timeout,
+	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if slices.Contains(strings.Split(req.URL.Path, "/"), "..") {
@@ -265,9 +272,13 @@ func forward(logger *slog.Logger, target *url.URL, transport http.RoundTripper) 
 
 		resp, err := client.Do(newReq)
 		if err != nil {
+			var netErr net.Error
 			if errors.Is(err, context.Canceled) {
 				logger.Warn("request to GCM was canceled by the caller of frontend. If a program made the request, consider increasing the timeout", "err", err)
 				w.WriteHeader(http.StatusBadRequest)
+			} else if errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &netErr) && netErr.Timeout()) {
+				logger.Warn("request to GCM timed out. Consider increasing --query.timeout", "err", err)
+				w.WriteHeader(http.StatusGatewayTimeout)
 			} else {
 				logger.Warn("requesting GCM failed", "err", err)
 				w.WriteHeader(http.StatusInternalServerError)
