@@ -63,6 +63,6 @@ RUN --mount=type=cache,target=/gocache/build \
 	GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
 	go build -o go-synthetic ./examples/instrumentation/go-synthetic
 
-FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20260928.00_p0@sha256:521379cbafae8f38a3cc396b9abdc569872ff9c4e26e7f6dee7b564b4fd33ab3
+FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20261115.00_p0@sha256:c3475356478c8ca22bc95e89024b969f4371132e31f8b9c84507140566faec4a
 COPY --from=appbase /app/go-synthetic /bin/go-synthetic
 ENTRYPOINT ["/bin/go-synthetic"]
