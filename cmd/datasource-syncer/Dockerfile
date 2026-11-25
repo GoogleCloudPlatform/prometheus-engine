@@ -70,7 +70,7 @@ RUN --mount=type=cache,target=/gocache/build \
 	cmd/datasource-syncer/*.go
 
 
-FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20261101.00_p0@sha256:52e1fd9180da347fc8d735c50368872b33d7e9505b09a70a861ebe57940bf0c6
+FROM gke.gcr.io/gke-distroless/libc:gke_distroless_20261115.00_p0@sha256:c3475356478c8ca22bc95e89024b969f4371132e31f8b9c84507140566faec4a
 COPY --from=buildbase /app/datasource-syncer /bin/datasource-syncer
 ENTRYPOINT ["/bin/datasource-syncer"]
 
