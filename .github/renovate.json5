@@ -218,6 +218,17 @@
       enabled: false,
     },
     {
+      description: 'Parse date-based tags for gke-distroless images as patch updates',
+      matchManagers: [
+        'dockerfile',
+        'custom.regex',
+      ],
+      matchPackageNames: [
+        'gke.gcr.io/gke-distroless/**',
+      ],
+      versioning: 'regex:^gke_distroless_(?<patch>\\d+)\\.(?<build>\\d+)_p(?<revision>\\d+)$',
+    },
+    {
       description: 'Disable minimum release age for 1P Google container images (GCR and Artifact Registry do not expose release timestamps)',
       matchManagers: [
         'dockerfile',

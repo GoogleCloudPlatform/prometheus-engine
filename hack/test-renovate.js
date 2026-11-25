@@ -245,6 +245,85 @@ async function runTests() {
     'Engine versioning classifies v2.53.5-gmp.2-gke.0 -> v3.13.0-gmp.1-gke.0 as "major"'
   );
 
+  // Verify gke-distroless regex versioning parses date-based tags as patch updates and ignores arch/non-release tags
+  const distrolessTargets = [
+    ['gke.gcr.io/gke-distroless/libc', 'dockerfile', 'examples/instrumentation/go-synthetic/Dockerfile'],
+    ['gke.gcr.io/gke-distroless/libc', 'dockerfile', 'cmd/operator/Dockerfile'],
+    ['gke.gcr.io/gke-distroless/bash', 'custom.regex', 'charts/values.global.yaml'],
+  ];
+  for (const [img, manager, packageFile] of distrolessTargets) {
+    const lookupRes = await applyPackageRules({
+      ...config,
+      packageFile,
+      manager,
+      packageName: img,
+      depName: img,
+      baseBranch: 'main',
+    });
+    assert(
+      typeof lookupRes.versioning === 'string' && lookupRes.versioning.startsWith('regex:'),
+      `gke-distroless image ${img} (${manager}, ${packageFile}) configures regex versioning`
+    );
+
+    for (const branch of ['main', 'release/0.19']) {
+      const updateRes = await simulateDep(img, {
+        manager,
+        packageFile,
+        baseBranch: branch,
+        updateType: 'patch',
+      });
+      assert(
+        updateRes.enabled !== false &&
+          updateRes.groupName === 'docker' &&
+          updateRes.automerge === true &&
+          Array.isArray(updateRes.addLabels) &&
+          updateRes.addLabels.includes('automerge') &&
+          updateRes.minimumReleaseAge === null,
+        `gke-distroless image ${img} (${manager}, ${branch}) enables automerged patch updates under 'docker' with no release age`
+      );
+    }
+  }
+
+  const distrolessLookup = await applyPackageRules({
+    ...config,
+    packageFile: 'examples/instrumentation/go-synthetic/Dockerfile',
+    manager: 'dockerfile',
+    packageName: 'gke.gcr.io/gke-distroless/libc',
+    depName: 'gke.gcr.io/gke-distroless/libc',
+    baseBranch: 'main',
+  });
+  const distrolessVersioning = getVersioning(distrolessLookup.versioning);
+
+  const distrolessPairs = [
+    ['gke_distroless_20260928.00_p0', 'gke_distroless_20261115.00_p0', 'date bump'],
+    ['gke_distroless_20261115.00_p0', 'gke_distroless_20261115.01_p0', 'build bump'],
+    ['gke_distroless_20261115.00_p0', 'gke_distroless_20261115.00_p1', 'revision bump'],
+    ['gke_distroless_20261115.00_p5', 'gke_distroless_20261115.01_p0', 'build outranks revision'],
+    ['gke_distroless_20261115.00_p2', 'gke_distroless_20261115.00_p10', 'numeric revision ordering'],
+  ];
+  for (const [fromVer, toVer, desc] of distrolessPairs) {
+    assert(
+      distrolessVersioning.isValid(fromVer) &&
+        distrolessVersioning.isValid(toVer) &&
+        distrolessVersioning.isCompatible(toVer, fromVer) &&
+        distrolessVersioning.isGreaterThan(toVer, fromVer) &&
+        classifyRelease(distrolessVersioning, fromVer, toVer) === 'patch',
+      `gke-distroless versioning classifies ${fromVer} -> ${toVer} (${desc}) as compatible 'patch'`
+    );
+  }
+  const rejectedDistrolessTags = [
+    'gke_distroless_20261115.00_p0-linux-amd64',
+    'gke_distroless_20261115.00_p0-linux-arm64',
+    'latest',
+    'update-available-fe4f650',
+  ];
+  for (const tag of rejectedDistrolessTags) {
+    assert(
+      !distrolessVersioning.isValid(tag),
+      `gke-distroless versioning ignores non-release tag "${tag}"`
+    );
+  }
+
   // Verify prometheus-engine image commit headers fit .conform.yaml limits (header <= 120, description <= 120).
   // Renovate applies the docker datasource default topic ("{{{depName}}} Docker tag") before packageRules,
   // so simulate that order to make sure the packageRules override wins.
@@ -1223,6 +1302,21 @@ async function runTests() {
         newVersion: 'gke_distroless_20260915.00_p0',
       }, { currentValue: 'gke_distroless_20260815.00_p0' })],
       expectedHeader: 'chore(deps): update bash image to gke_distroless_20260915.00_p0',
+    },
+    {
+      desc: 'Dockerfile gke-distroless/libc tag and digest bump',
+      manager: 'dockerfile',
+      packageFile: 'examples/instrumentation/go-synthetic/Dockerfile',
+      deps: [dockerDep('gke.gcr.io/gke-distroless/libc', {
+        updateType: 'patch',
+        newValue: 'gke_distroless_20261115.00_p0',
+        newVersion: 'gke_distroless_20261115.00_p0',
+        newDigest: `sha256:${'b'.repeat(64)}`,
+      }, {
+        currentValue: 'gke_distroless_20260928.00_p0',
+        currentDigest: `sha256:${'a'.repeat(64)}`,
+      })],
+      expectedHeader: 'chore(deps): update libc image to gke_distroless_20261115.00_p0',
     },
     {
       desc: 'Prometheus-engine image with longest -gmp.N-gke.N tag',
