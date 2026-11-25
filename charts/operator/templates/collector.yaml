@@ -44,7 +44,7 @@ spec:
       initContainers:
       - name: config-init
         image: {{.Values.images.bash.image}}:{{.Values.images.bash.tag}}
-        command: ['/bin/bash', '-c', 'touch /prometheus/config_out/config.yaml']
+        command: ['/bin/bash', '-c', 'rm -rf /prometheus/config_out/* && touch /prometheus/config_out/config.yaml']
         volumeMounts:
         - name: config-out
           mountPath: /prometheus/config_out
