@@ -167,6 +167,15 @@ func (r *collectionReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 		return reconcile.Result{}, fmt.Errorf("get operatorconfig for incoming: %q: %w", req.String(), err)
 	}
 
+	// Default in memory so the collector config always has the operator's default
+	// external labels, even before OperatorConfig exists or is persisted with defaults.
+	defaulter := &operatorConfigDefaulter{
+		projectID: r.opts.ProjectID,
+		location:  r.opts.Location,
+		cluster:   r.opts.Cluster,
+	}
+	defaulter.update(&config)
+
 	if err := r.ensureCollectorSecrets(ctx, &config.Collection); err != nil {
 		return reconcile.Result{}, fmt.Errorf("ensure collector secrets: %w", err)
 	}

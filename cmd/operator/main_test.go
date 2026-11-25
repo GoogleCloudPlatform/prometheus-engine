@@ -17,7 +17,11 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
+	"strings"
 	"testing"
+
+	"github.com/go-logr/logr/funcr"
 )
 
 type fakeMetadataProvider struct {
@@ -208,4 +212,58 @@ func TestPopulateMetadataDefaults(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWarnDeprecatedWebhookFlags(t *testing.T) {
+	newFlagSet := func(args []string) *flag.FlagSet {
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		_ = fs.String("project-id", "", "")
+		_ = fs.String("tls-cert-base64", "", "")
+		_ = fs.String("tls-key-base64", "", "")
+		_ = fs.String("ca-cert-base64", "", "")
+		_ = fs.String("cert-dir", defaultTLSDir, "")
+		_ = fs.String("webhook-addr", ":10250", "")
+		if err := fs.Parse(args); err != nil {
+			t.Fatalf("parse flags: %v", err)
+		}
+		return fs
+	}
+
+	t.Run("no deprecated flags logs nothing", func(t *testing.T) {
+		var logs []string
+		logger := funcr.New(func(_, args string) {
+			logs = append(logs, args)
+		}, funcr.Options{})
+
+		warnDeprecatedWebhookFlags(newFlagSet([]string{"-project-id=test-proj"}), logger)
+		if len(logs) != 0 {
+			t.Fatalf("expected no warning logs, got %v", logs)
+		}
+	})
+
+	t.Run("deprecated flags log one warning without flag values", func(t *testing.T) {
+		var logs []string
+		logger := funcr.New(func(_, args string) {
+			logs = append(logs, args)
+		}, funcr.Options{})
+
+		warnDeprecatedWebhookFlags(newFlagSet([]string{
+			"-project-id=test-proj",
+			"-webhook-addr=:10250",
+			"-tls-key-base64=super-secret-key",
+			"-ca-cert-base64=ca-data",
+		}), logger)
+
+		if len(logs) != 1 {
+			t.Fatalf("expected 1 warning log, got %d: %v", len(logs), logs)
+		}
+		for _, want := range []string{"deprecated webhook flags are ignored", "-ca-cert-base64", "-tls-key-base64", "-webhook-addr"} {
+			if !strings.Contains(logs[0], want) {
+				t.Errorf("log %q does not contain %q", logs[0], want)
+			}
+		}
+		if strings.Contains(logs[0], "super-secret-key") || strings.Contains(logs[0], "ca-data") {
+			t.Errorf("log %q must not contain flag values", logs[0])
+		}
+	})
 }

@@ -111,21 +111,14 @@ kind: ClusterRole
 metadata:
   name: gmp-system:operator:webhook-admin
 rules:
-# Permission to inject CA bundles into webhook configs of fixed name.
+# Permission to delete webhook configs installed by previous versions. The
+# operator no longer serves admission webhooks.
 - resources:
   - validatingwebhookconfigurations
   - mutatingwebhookconfigurations
   apiGroups: ["admissionregistration.k8s.io"]
   resourceNames:
   - gmp-operator.gmp-system.monitoring.googleapis.com
-  verbs: ["get", "patch", "update", "watch"]
-# Permission to delete legacy webhook config the operator directly created
-# in previous versions.
-- resources:
-  - validatingwebhookconfigurations
-  - mutatingwebhookconfigurations
-  apiGroups: ["admissionregistration.k8s.io"]
-  resourceNames:
   - gmp-operator
   verbs: ["delete"]
 ---
@@ -309,30 +302,6 @@ spec:
     - name: rule-evaluator
       port: 19092
       targetPort: 19092
----
-# Source: operator/templates/service.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: gmp-operator
-  namespace: gmp-system
-spec:
-  selector:
-    app.kubernetes.io/component: operator
-    app.kubernetes.io/name: gmp-operator
-    app.kubernetes.io/part-of: gmp
-  ports:
-  # This port does not do anything, but allows upgrades in the case
-  # of server-side apply (SSA) conflicts.
-  # TODO(pintohutch): remove once the SSA issues from upgrades are resolved.
-  - name: legacy
-    protocol: TCP
-    port: 8443
-    targetPort: webhook
-  - name: webhook
-    protocol: TCP
-    port: 443
-    targetPort: web
 ---
 # Source: operator/templates/collector.yaml
 apiVersion: apps/v1
@@ -571,12 +540,7 @@ spec:
         args:
         - "--operator-namespace=gmp-system"
         - "--public-namespace=gmp-public"
-        - "--webhook-addr=:10250"
         ports:
-        - name: web
-          # Note this should match the --listen-addr flag passed in to the operator args.
-          # Default is 10250.
-          containerPort: 10250
         - name: metrics
           # Note this should match the --metrics-addr flag passed in to the operator args.
           # Default is 18080.
@@ -617,9 +581,6 @@ spec:
             port: 18081
             scheme: HTTP
           periodSeconds: 10
-        volumeMounts:
-        - name: certs
-          mountPath: /etc/tls/private
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -651,9 +612,6 @@ spec:
         runAsUser: 1000
         seccompProfile:
           type: RuntimeDefault
-      volumes:
-      - name: certs
-        emptyDir: {}
 ---
 # Source: operator/templates/rule-evaluator.yaml
 apiVersion: apps/v1
@@ -989,36 +947,6 @@ spec:
           type: RuntimeDefault
   serviceName: alertmanager
 ---
-# Source: operator/templates/mutatingwebhookconfiguration.yaml
-apiVersion: admissionregistration.k8s.io/v1
-kind: MutatingWebhookConfiguration
-metadata:
-  name: gmp-operator.gmp-system.monitoring.googleapis.com
-webhooks:
-- name: default.operatorconfigs.gmp-operator.gmp-system.monitoring.googleapis.com
-  admissionReviewVersions:
-  - v1
-  clientConfig:
-    # caBundle populated by operator.
-    service:
-      name: gmp-operator
-      namespace: gmp-system
-      port: 443
-      path: /default/monitoring.googleapis.com/v1/operatorconfigs
-  # Since this is re-applied at runtime by the operator's controllers
-  # we can safely ignore any transient issues with the webhook server.
-  failurePolicy: Ignore
-  rules:
-  - resources:
-    - operatorconfigs
-    apiGroups:
-    - monitoring.googleapis.com
-    apiVersions:
-    - v1
-    operations:
-    - UPDATE
-  sideEffects: None
----
 # Source: operator/templates/operatorconfig.yaml
 apiVersion: monitoring.googleapis.com/v1
 kind: OperatorConfig
@@ -1134,32 +1062,3 @@ metadata:
 spec:
   policyName: "unique-ports.monitoring.googleapis.com"
   validationActions: [Deny]
----
-# Source: operator/templates/validatingwebhookconfiguration.yaml
-apiVersion: admissionregistration.k8s.io/v1
-kind: ValidatingWebhookConfiguration
-metadata:
-  name: gmp-operator.gmp-system.monitoring.googleapis.com
-webhooks:
-- name: validate.operatorconfigs.gmp-operator.gmp-system.monitoring.googleapis.com
-  admissionReviewVersions:
-  - v1
-  clientConfig:
-    # caBundle populated by operator.
-    service:
-      name: gmp-operator
-      namespace: gmp-system
-      port: 443
-      path: /validate/monitoring.googleapis.com/v1/operatorconfigs
-  failurePolicy: Fail
-  rules:
-  - resources:
-    - operatorconfigs
-    apiGroups:
-    - monitoring.googleapis.com
-    apiVersions:
-    - v1
-    operations:
-    - CREATE
-    - UPDATE
-  sideEffects: None

@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
+	"github.com/go-logr/logr"
 	"github.com/oklog/run"
 	versioninfo "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -88,6 +89,21 @@ func populateMetadataDefaults(ctx context.Context, md metadataProvider, projectI
 	return errors.Join(errList...)
 }
 
+// warnDeprecatedWebhookFlags logs a one-time warning if any deprecated webhook
+// or TLS flags were explicitly passed on the command line.
+func warnDeprecatedWebhookFlags(fs *flag.FlagSet, logger logr.Logger) {
+	var set []string
+	fs.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "tls-cert-base64", "tls-key-base64", "ca-cert-base64", "cert-dir", "webhook-addr":
+			set = append(set, "-"+f.Name)
+		}
+	})
+	if len(set) > 0 {
+		logger.Info("deprecated webhook flags are ignored and will be removed in a future release", "flags", set)
+	}
+}
+
 func main() {
 	ctx := context.Background()
 
@@ -101,12 +117,14 @@ func main() {
 		publicNamespace = flag.String("public-namespace", operator.DefaultPublicNamespace,
 			"Namespace in which the operator reads user-provided resources.")
 
-		tlsCert     = flag.String("tls-cert-base64", "", "The base64-encoded TLS certificate.")
-		tlsKey      = flag.String("tls-key-base64", "", "The base64-encoded TLS key.")
-		caCert      = flag.String("ca-cert-base64", "", "The base64-encoded certificate authority.")
-		certDir     = flag.String("cert-dir", defaultTLSDir, "The directory which contains TLS certificates for webhook server.")
-		webhookAddr = flag.String("webhook-addr", ":10250",
-			"Address to listen to for incoming kube admission webhook connections.")
+		// The operator no longer serves admission webhooks. These flags are accepted
+		// and ignored so that existing manifests keep working during upgrades.
+		_ = flag.String("tls-cert-base64", "", "Deprecated: no-op. The operator no longer serves admission webhooks.")
+		_ = flag.String("tls-key-base64", "", "Deprecated: no-op. The operator no longer serves admission webhooks.")
+		_ = flag.String("ca-cert-base64", "", "Deprecated: no-op. The operator no longer serves admission webhooks.")
+		_ = flag.String("cert-dir", defaultTLSDir, "Deprecated: no-op. The operator no longer serves admission webhooks.")
+		_ = flag.String("webhook-addr", ":10250", "Deprecated: no-op. The operator no longer serves admission webhooks.")
+
 		probeAddr   = flag.String("probe-addr", ":18081", "Address to outputs probe statuses (e.g. /readyz and /healthz)")
 		metricsAddr = flag.String("metrics-addr", ":18080", "Address to emit metrics on.")
 
@@ -120,6 +138,7 @@ func main() {
 
 	logger := zap.New(zap.Level(zapcore.Level(-*logVerbosity)))
 	ctrl.SetLogger(logger)
+	warnDeprecatedWebhookFlags(flag.CommandLine, logger)
 	if err := populateMetadataDefaults(ctx, metadata.NewClient(nil), projectID, cluster, location); err != nil {
 		logger.Error(err, "unable to fetch Google Cloud metadata")
 	}
@@ -144,11 +163,6 @@ func main() {
 		OperatorNamespace: *operatorNamespace,
 		PublicNamespace:   *publicNamespace,
 		ProbeAddr:         *probeAddr,
-		TLSCert:           *tlsCert,
-		TLSKey:            *tlsKey,
-		CACert:            *caCert,
-		CertDir:           *certDir,
-		ListenAddr:        *webhookAddr,
 		CleanupAnnotKey:   *cleanupAnnotKey,
 	})
 	if err != nil {

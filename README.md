@@ -36,7 +36,7 @@ On GKE, Managed Service for Prometheus can be enabled directly via GKE cluster f
 # 1. Create namespaces (gmp-system, gmp-public), CRDs, and cluster RBAC:
 kubectl apply -f manifests/setup.yaml
 
-# 2. Deploy gmp-operator, admission webhooks, and default OperatorConfig:
+# 2. Deploy gmp-operator and default OperatorConfig:
 kubectl apply -f manifests/operator.yaml
 
 # 3. (Optional) Deploy standalone rule-evaluator:
